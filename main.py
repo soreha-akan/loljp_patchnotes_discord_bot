@@ -48,20 +48,6 @@ def save_last_dev_title(title):
     with open('article_titles.json', 'w') as file:
         json.dump({'last_dev_title': title}, file)
 
-# ファイルから最後のPrimeタイトルを読み取る
-def load_last_prime_notice_title():
-    try:
-        with open('article_titles.json', 'r') as file:
-            data = json.load(file)
-            return data.get('last_prime_notice_title', '')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ''
-
-# ファイルに最後のPrimeタイトルを保存
-def save_last_prime_notice_title(title):
-    with open('article_titles.json', 'w') as file:
-        json.dump({'last_prime_notice_title': title}, file)
-
 last_patch_title = load_last_patch_title()
 last_dev_title = load_last_dev_title()
 last_prime_notice_title = load_last_prime_notice_title()
@@ -90,7 +76,7 @@ async def check_patch_title():
         
         # full_url のリンク先ページを取得
         async with aiohttp.ClientSession() as session:
-            async with session.get(full_url) as response:
+            async with session.get(patch_full_url) as response:
                 page_html = await response.text()
         
         # "skins cboxElement" クラスを持つ最初の <a> 要素を取得し、そのURLを取得
