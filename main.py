@@ -1,11 +1,13 @@
-from keep_alive import keep_alive
-import discord
-import os
-from discord.ext import commands, tasks
 import aiohttp
+import discord
+import io
 import json
+import os
 from bs4 import BeautifulSoup
+from discord.ext import commands, tasks
 from urllib.parse import urljoin
+from keep_alive import keep_alive
+
 
 intents = discord.Intents.default()
 intents.typing = False
@@ -56,6 +58,15 @@ async def check_patch_title():
         patch_url = first_target_a_tag.get('href')
         full_url = urljoin(url, patch_url)
         
+        # full_url のリンク先ページを取得
+        async with aiohttp.ClientSession() as session:
+            async with session.get(full_url) as response:
+                page_html = await response.text()
+        
+        # "skins cboxElement" クラスを持つ最初の <a> 要素を取得し、そのURLを取得
+        page_soup = BeautifulSoup(page_html, 'html.parser')
+        patch_hilight_image = page_soup.find('a', class_='skins cboxElement')
+        
         # <h2>要素を取得
         h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
         
@@ -66,7 +77,15 @@ async def check_patch_title():
         
         if patch_title != last_patch_title:
             channel = bot.get_channel(1155455630585376858)  # パッチ情報を送信するチャンネルのIDを指定
-            await channel.send(f'[{patch_title}]({full_url})')
+
+           # 画像ファイルのURLから画像をダウンロード
+            async with aiohttp.ClientSession() as session:
+                async with session.get(patch_hilight_image['href']) as image_response:
+                    image_data = await image_response.read()
+                  
+            # 画像をメッセージに添付して送信
+            image_file = discord.File(io.BytesIO(image_data), filename='patch_hilight_image.png')
+            await channel.send(f'### [{patch_title}](<{full_url}>)', file=image_file)
             last_patch_title = patch_title
             
             # 新しいパッチタイトルをファイルに保存
