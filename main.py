@@ -50,12 +50,12 @@ def save_last_dev_title(title):
 
 last_patch_title = load_last_patch_title()
 last_dev_title = load_last_dev_title()
-last_prime_notice_title = load_last_prime_notice_title()
 
 @bot.event
 async def on_ready():
     print(f'{bot.user}のログインに成功！')
     check_patch_title.start()
+    check_dev_title.start()
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
