@@ -98,7 +98,7 @@ async def check_patch_title():
                   
             # 画像をメッセージに添付して送信
             image_file = discord.File(io.BytesIO(image_data), filename='patch_hilight_image.png')
-            await channel.send(f'### [{patch_title}](<{patch_full_url}>)', file=image_file)
+            await channel.send(f'### - [{patch_title}](<{patch_full_url}>)', file=image_file)
             last_patch_title = patch_title
             
             # 新しいパッチタイトルをファイルに保存
@@ -134,7 +134,7 @@ async def check_dev_title():
             channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
            
             # 画像をメッセージに添付して送信
-            await channel.send(f'### [{dev_title}]({dev_full_url})')
+            await channel.send(f'### - [{dev_title}]({dev_full_url})')
             last_dev_title = dev_title
             
             # 新しいパッチタイトルをファイルに保存
