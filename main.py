@@ -23,7 +23,7 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=in
 # ファイルから最後のパッチタイトルを読み取る
 def load_last_patch_title():
     try:
-        with open('article_titles.json', 'r') as file:
+        with open('last_patch_title.json', 'r') as file:
             data = json.load(file)
             return data.get('last_patch_title', '')
     except (FileNotFoundError, json.JSONDecodeError):
@@ -31,13 +31,13 @@ def load_last_patch_title():
 
 # ファイルに最後のパッチタイトルを保存
 def save_last_patch_title(title):
-    with open('article_titles.json', 'w') as file:
+    with open('last_patch_title.json', 'w') as file:
         json.dump({'last_patch_title': title}, file)
 
 # ファイルから最後の/devタイトルを読み取る
 def load_last_dev_title():
     try:
-        with open('article_titles.json', 'r') as file:
+        with open('last_dev_title.json', 'r') as file:
             data = json.load(file)
             return data.get('last_dev_title', '')
     except (FileNotFoundError, json.JSONDecodeError):
@@ -45,7 +45,7 @@ def load_last_dev_title():
 
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(title):
-    with open('article_titles.json', 'w') as file:
+    with open('last_dev_title.json', 'w') as file:
         json.dump({'last_dev_title': title}, file)
 
 last_patch_title = load_last_patch_title()
@@ -134,7 +134,7 @@ async def check_dev_title():
             channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
            
             # 画像をメッセージに添付して送信
-            await channel.send(f'### [{dev_title}](<{dev_full_url}>)')
+            await channel.send(f'### [{dev_title}]({dev_full_url})')
             last_dev_title = dev_title
             
             # 新しいパッチタイトルをファイルに保存
