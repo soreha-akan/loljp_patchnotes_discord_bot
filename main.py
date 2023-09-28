@@ -57,9 +57,6 @@ class PatchBot(commands.Bot):
         intents.message_content = True
         self.bot_token = os.environ.get('DISCORD_BOT_TOKEN')
         self.prefix = '!'  # コマンドプリフィックス
-        self.last_patch_title = self.load_last_title('last_patch_title.json')
-        self.last_dev_title = self.load_last_title('last_dev_title.json')
-        self.last_prime_title = self.load_last_title('last_prime_title.json')
         
         self.check_tasks = [
             CheckTask(
