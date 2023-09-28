@@ -192,7 +192,7 @@ async def check_prime_title():
                 
                 # 新しいPrime情報タイトルをファイルに保存
                 save_last_prime_title(prime_title)
-                break  # 条件を満たす要素が見つかったらループを終了
+            break  # 条件を満たす要素が見つかったらループを終了
 
 @check_prime_title.before_loop
 async def before_check_prime_title():
