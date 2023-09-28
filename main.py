@@ -8,198 +8,113 @@ from discord.ext import commands, tasks
 from urllib.parse import urljoin
 from keep_alive import keep_alive
 
+class CheckTask:
+    def __init__(self, name, url, channel_id):
+        self.name = name
+        self.url = url
+        self.channel_id = channel_id
+        self.last_title = ""
+        self.task = tasks.loop(minutes=15)(self.check)
 
-intents = discord.Intents.default()
-intents.typing = False
-intents.presences = False
-intents.message_content = True
-
-keep_alive()
-TOKEN = os.environ['DISCORD_BOT_TOKEN']
-PREFIX = '!'  # コマンドプリフィックス
-
-bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=intents)
-
-# ファイルから最後のパッチタイトルを読み取る
-def load_last_patch_title():
-    try:
-        with open('last_patch_title.json', 'r') as file:
-            data = json.load(file)
-            return data.get('last_patch_title', '')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ''
-
-# ファイルに最後のパッチタイトルを保存
-def save_last_patch_title(title):
-    with open('last_patch_title.json', 'w') as file:
-        json.dump({'last_patch_title': title}, file)
-
-# ファイルから最後の/devタイトルを読み取る
-def load_last_dev_title():
-    try:
-        with open('last_dev_title.json', 'r') as file:
-            data = json.load(file)
-            return data.get('last_dev_title', '')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ''
-
-# ファイルに最後の/devタイトルを保存
-def save_last_dev_title(title):
-    with open('last_dev_title.json', 'w') as file:
-        json.dump({'last_dev_title': title}, file)
-
-# ファイルから最後のPrime通知タイトルを読み取る
-def load_last_prime_title():
-    try:
-        with open('last_prime_title.json', 'r') as file:
-            data = json.load(file)
-            return data.get('last_prime_title', '')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ''
-
-# ファイルに最後のPrime通知タイトルを保存
-def save_last_prime_title(title):
-    with open('last_prime_title.json', 'w') as file:
-        json.dump({'last_prime_title': title}, file)
-
-last_patch_title = load_last_patch_title()
-last_dev_title = load_last_dev_title()
-last_prime_title = load_last_prime_title()
-
-@bot.event
-async def on_ready():
-    print(f'{bot.user}のログインに成功！')
-    check_patch_title.start()
-    check_dev_title.start()
-    check_prime_title.start()
-
-@tasks.loop(minutes=15)
-async def check_patch_title():
-    global last_patch_title
-    
-    url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            html = await response.text()
-    
-    soup = BeautifulSoup(html, 'html.parser')
-    target_a_tags = soup.find_all('a', class_='style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible')
-
-    if target_a_tags:
-        first_target_a_tag = target_a_tags[0]
-        patch_url = first_target_a_tag.get('href')
-        patch_full_url = urljoin(url, patch_url)
-        
-        # full_url のリンク先ページを取得
+    async def check(self, bot):
         async with aiohttp.ClientSession() as session:
-            async with session.get(patch_full_url) as response:
-                page_html = await response.text()
+            async with session.get(self.url) as response:
+                html = await response.text()
+
+        soup = BeautifulSoup(html, 'html.parser')
+        target_a_tags = soup.find_all('a', class_='style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible')
+
+        for a_tag in target_a_tags:
+            # <h2>要素を取得
+            h2_element = a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
+
+            # h2要素のテキストを取得
+            title = h2_element.text if h2_element else ""
+
+            # テキスト条件を追加
+            if self.should_send_notification(title):
+                if title != self.last_title:
+                    channel = bot.get_channel(self.channel_id)
+
+                    # メッセージを送信
+                    full_url = urljoin(self.url, a_tag.get('href'))
+                    await channel.send(f'### - [{title}]({full_url})')
+                    self.last_title = title
+
+                    # 新しいタイトルを保存
+                    bot.save_last_title(f'last_{self.name}.json', title)
+                    break  # 条件を満たす要素が見つかったらループを終了
+
+    def should_send_notification(self, title):
+        return True  # ここに通知を送信する条件を追加
+
+class PatchBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        intents = discord.Intents.default()
+        intents.typing = False
+        intents.presences = False
+        intents.message_content = True
+        self.bot_token = os.environ.get('DISCORD_BOT_TOKEN')
+        self.prefix = '!'  # コマンドプリフィックス
+        self.last_patch_title = self.load_last_title('last_patch_title.json')
+        self.last_dev_title = self.load_last_title('last_dev_title.json')
+        self.last_prime_title = self.load_last_title('last_prime_title.json')
         
-        # "skins cboxElement" クラスを持つ最初の <a> 要素を取得し、そのURLを取得
-        page_soup = BeautifulSoup(page_html, 'html.parser')
-        patch_hilight_image = page_soup.find('a', class_='skins cboxElement')
-        
-        # <h2>要素を取得
-        h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
-        
-        patch_title = h2_element.text
-        
-        if patch_title != last_patch_title:
-            channel = bot.get_channel(1155455630585376858)  # パッチ情報を送信するチャンネルのIDを指定
+        self.check_tasks = [
+            CheckTask(
+                name="check_patch_title",
+                url="https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/",
+                channel_id=1155455630585376858
+            ),
+            CheckTask(
+                name="check_dev_title",
+                url="https://www.leagueoflegends.com/ja-jp/news/dev/",
+                channel_id=1155455630585376858
+            ),
+            CheckTask(
+                name="check_prime_title",
+                url="https://www.leagueoflegends.com/ja-jp/news/community/",
+                channel_id=1155455630585376858
+            ),
+        ]
 
-           # 画像ファイルのURLから画像をダウンロード
-            async with aiohttp.ClientSession() as session:
-                async with session.get(patch_hilight_image['href']) as image_response:
-                    image_data = await image_response.read()
-                  
-            # 画像をメッセージに添付して送信
-            image_file = discord.File(io.BytesIO(image_data), filename='patch_hilight_image.png')
-            await channel.send(f'### - [{patch_title}](<{patch_full_url}>)', file=image_file)
-            last_patch_title = patch_title
-            
-            # 新しいパッチタイトルをファイルに保存
-            save_last_patch_title(patch_title)
+    def load_last_title(self, filename):
+        try:
+            with open(filename, 'r') as file:
+                data = json.load(file)
+                return data.get('last_title', '')
+        except (FileNotFoundError, json.JSONDecodeError):
+            return ''
 
-@check_patch_title.before_loop
-async def before_check_patch_title():
-    await bot.wait_until_ready()
+    def save_last_title(self, filename, title):
+        with open(filename, 'w') as file:
+            json.dump({'last_title': title}, file)
 
-@tasks.loop(minutes=15)
-async def check_dev_title():
-    global last_dev_title
-    
-    url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            html = await response.text()
-    
-    soup = BeautifulSoup(html, 'html.parser')
-    target_a_tags = soup.find_all('a', class_='style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible')
+    async def on_ready(self):
+        print(f'{self.user}のログインに成功！')
+        for task in self.check_tasks:
+            task.task.start(self)
 
-    if target_a_tags:
-        first_target_a_tag = target_a_tags[0]
-        dev_url = first_target_a_tag.get('href')
-        dev_full_url = urljoin(url, dev_url)
-         
-        # <h2>要素を取得
-        h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
-        
-        dev_title = h2_element.text
-        
-        if dev_title != last_dev_title:
-            channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
-           
-            # メッセージを送信
-            await channel.send(f'### - [{dev_title}]({dev_full_url})')
-            last_dev_title = dev_title
-            
-            # 新しい/devタイトルをファイルに保存
-            save_last_dev_title(dev_title)
+    async def on_error(self, event, *args, **kwargs):
+        print(f"An error occurred in event {event}: {args}, {kwargs}")
 
-@check_dev_title.before_loop
-async def before_check_dev_title():
-    await bot.wait_until_ready()
+    async def on_command_error(self, ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            return
 
-@tasks.loop(minutes=15)
-async def check_prime_title():
-    global last_prime_title
-    
-    url = "https://www.leagueoflegends.com/ja-jp/news/community/"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            html = await response.text()
-    
-    soup = BeautifulSoup(html, 'html.parser')
-    target_a_tags = soup.find_all('a', class_='style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible')
+        print(f"An error occurred in command '{ctx.command}': {error}")
 
-    for a_tag in target_a_tags:
-        # <h2>要素を取得
-        h2_element = a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
+if __name__ == "__main__":
+    intents = discord.Intents.default()
+    intents.typing = False
+    intents.presences = False
+    intents.message_content = True
 
-        # h2要素のテキストを取得
-        prime_title = h2_element.text if h2_element else ""
-
-        # テキスト条件を追加
-        if "無料Prime報酬" in prime_title or "RPなどを無料で手に入れよう" in prime_title:
-            if prime_title != last_prime_title:
-                channel = bot.get_channel(1155455630585376858)  # Prime情報を送信するチャンネルのIDを指定
-               
-                # メッセージを送信
-                prime_url = a_tag.get('href')
-                prime_full_url = urljoin(url, prime_url)
-                await channel.send(f'### - [{prime_title}]({prime_full_url})')
-                last_prime_title = prime_title
-                
-                # 新しいPrime情報タイトルをファイルに保存
-                save_last_prime_title(prime_title)
-                break  # 条件を満たす要素が見つかったらループを終了
-
-@check_prime_title.before_loop
-async def before_check_prime_title():
-    await bot.wait_until_ready()
-
-try:
-    bot.run(TOKEN)
-except Exception as e:
-    print(f"An error occurred: {e}")
-    os.system("kill 1")
+    bot = PatchBot(command_prefix=commands.when_mentioned_or('!'), intents=intents)  # Botインスタンスを作成
+    keep_alive()
+    try:
+        bot.run(bot.bot_token)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        os.system("kill 1")
