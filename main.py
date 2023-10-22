@@ -95,9 +95,11 @@ async def check_patch_title():
             async with session.get(patch_full_url) as response:
                 page_html = await response.text()
         
-        # "skins cboxElement" クラスを持つ最初の <a> 要素を取得し、そのURLを取得
+        # "Patch-Highlights_TW_1920x1080_JA.jpgを含む画像URLを取得
         page_soup = BeautifulSoup(page_html, 'html.parser')
-        patch_hilight_image = page_soup.find('a', class_='skins cboxElement')
+        img_tags = page_soup.find_all('img', src=True)
+        target_src = "Patch-Highlights_TW_1920x1080_JA.jpg"
+        matching_img_tags = [img['src'] for img in img_tags if target_src in img['src']][0]
         
         # <h2>要素を取得
         h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
@@ -109,7 +111,7 @@ async def check_patch_title():
 
            # 画像ファイルのURLから画像をダウンロード
             async with aiohttp.ClientSession() as session:
-                async with session.get(patch_hilight_image['href']) as image_response:
+                async with session.get(matching_img_tags) as image_response:
                     image_data = await image_response.read()
                   
             # 画像をメッセージに添付して送信
@@ -180,7 +182,9 @@ async def check_prime_title():
         prime_title = h2_element.text if h2_element else ""
 
         # テキスト条件を追加
-        if "無料Prime報酬" in prime_title or "RPなどを無料で手に入れよう" in prime_title:
+        if ("無料Prime報酬" in prime_title or
+        "RPなどを無料で手に入れよう" in prime_title or
+        "Primeの無料報酬"in prime_title):
             if prime_title != last_prime_title:
                 channel = bot.get_channel(1155455630585376858)  # Prime情報を送信するチャンネルのIDを指定
                
