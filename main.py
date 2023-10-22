@@ -36,17 +36,14 @@ def save_last_patch_title(title):
 
 # ファイルから最後の/devタイトルを読み取る
 def load_last_dev_title():
-    try:
-        with open('last_dev_title.json', 'r') as file:
-            data = json.load(file)
-            return data.get('last_dev_title', '')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ''
 
+    with open('last_dev_title.json', 'r') as file:
+        return json.load(file)
+        
 # ファイルに最後の/devタイトルを保存
-def save_last_dev_title(title):
+def save_last_dev_title(titles):
     with open('last_dev_title.json', 'w') as file:
-        json.dump({'last_dev_title': title}, file)
+        json.dump({'last_dev_title': titles}, file)
 
 # ファイルから最後のPrime通知タイトルを読み取る
 def load_last_prime_title():
@@ -63,7 +60,7 @@ def save_last_prime_title(title):
         json.dump({'last_prime_title': title}, file)
 
 last_patch_title = load_last_patch_title()
-last_dev_title = load_last_dev_title()
+last_dev_titles = load_last_dev_title()
 last_prime_title = load_last_prime_title()
 
 @bot.event
@@ -128,7 +125,7 @@ async def before_check_patch_title():
 
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    global last_dev_title
+    global last_dev_titles
     
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
     async with aiohttp.ClientSession() as session:
@@ -138,25 +135,26 @@ async def check_dev_title():
     soup = BeautifulSoup(html, 'html.parser')
     target_a_tags = soup.find_all('a', class_='style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible')
 
-    if target_a_tags:
-        first_target_a_tag = target_a_tags[0]
-        dev_url = first_target_a_tag.get('href')
+    titles = {}
+    for target_a_tag in target_a_tags:
+        dev_url = target_a_tag.get('href')
         dev_full_url = urljoin(url, dev_url)
-         
+        
         # <h2>要素を取得
-        h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
+        h2_element = target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
         
-        dev_title = h2_element.text
+        titles[h2_element.text] = dev_full_url
         
-        if dev_title != last_dev_title:
-            channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
-           
-            # メッセージを送信
-            await channel.send(f'### - [{dev_title}]({dev_full_url})')
-            last_dev_title = dev_title
+    if titles != last_dev_titles["last_dev_title"]:
+        channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
+        for key, value in titles.items():
+            if key not in last_dev_titles["last_dev_title"]:
+                # メッセージを送信
+                await channel.send(f'### - [{key}]({value})')
             
             # 新しい/devタイトルをファイルに保存
-            save_last_dev_title(dev_title)
+            save_last_dev_title(titles)
+
 
 @check_dev_title.before_loop
 async def before_check_dev_title():
