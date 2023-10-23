@@ -8,7 +8,6 @@ from discord.ext import commands, tasks
 from urllib.parse import urljoin
 from keep_alive import keep_alive
 
-
 intents = discord.Intents.default()
 intents.typing = False
 intents.presences = False
@@ -36,14 +35,16 @@ def save_last_patch_title(title):
 
 # ファイルから最後の/devタイトルを読み取る
 def load_last_dev_title():
-
-    with open('last_dev_title.json', 'r') as file:
-        return json.load(file)
+    try:
+        with open('last_dev_title.json', 'r') as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ''
         
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(titles):
     with open('last_dev_title.json', 'w') as file:
-        json.dump({'last_dev_title': titles}, file)
+        json.dump(titles, file)
 
 # ファイルから最後のPrime通知タイトルを読み取る
 def load_last_prime_title():
@@ -145,16 +146,15 @@ async def check_dev_title():
         
         titles[h2_element.text] = dev_full_url
         
-    if titles != last_dev_titles["last_dev_title"]:
+    if titles != last_dev_titles:
         channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
         for key, value in titles.items():
-            if key not in last_dev_titles["last_dev_title"]:
+            if key not in last_dev_titles:
                 # メッセージを送信
                 await channel.send(f'### - [{key}]({value})')
             
             # 新しい/devタイトルをファイルに保存
             save_last_dev_title(titles)
-
 
 @check_dev_title.before_loop
 async def before_check_dev_title():
