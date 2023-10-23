@@ -74,7 +74,8 @@ async def on_ready():
 @tasks.loop(minutes=15)
 async def check_patch_title():
     global last_patch_title
-    
+
+    print(f'{bot.user} - パッチタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -127,7 +128,8 @@ async def before_check_patch_title():
 @tasks.loop(minutes=15)
 async def check_dev_title():
     global last_dev_titles
-    
+
+    print(f'{bot.user} - Devタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
@@ -145,8 +147,9 @@ async def check_dev_title():
         h2_element = target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
         
         titles[h2_element.text] = dev_full_url
-        
+  
     if titles != last_dev_titles:
+        print("DEV titles were updated")
         channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
         for key, value in titles.items():
             if key not in last_dev_titles:
@@ -163,7 +166,8 @@ async def before_check_dev_title():
 @tasks.loop(minutes=15)
 async def check_prime_title():
     global last_prime_title
-    
+
+    print(f'{bot.user} - Primeタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/community/"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
