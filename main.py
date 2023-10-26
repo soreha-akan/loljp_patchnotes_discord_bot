@@ -186,7 +186,9 @@ async def check_prime_title():
         # テキスト条件を追加
         if ("無料Prime報酬" in prime_title or
         "RPなどを無料で手に入れよう" in prime_title or
-        "Primeの無料報酬"in prime_title):
+        "Primeの無料報酬"in prime_title or
+        "Prime"in prime_title or
+        "無料"in prime_title):
             if prime_title != last_prime_title:
                 channel = bot.get_channel(1155455630585376858)  # Prime情報を送信するチャンネルのIDを指定
                
