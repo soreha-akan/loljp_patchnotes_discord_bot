@@ -60,10 +60,6 @@ def save_last_prime_title(title):
     with open('last_prime_title.json', 'w') as file:
         json.dump({'last_prime_title': title}, file)
 
-last_patch_title = load_last_patch_title()
-last_dev_titles = load_last_dev_title()
-last_prime_title = load_last_prime_title()
-
 @bot.event
 async def on_ready():
     print(f'{bot.user}のログインに成功！')
@@ -73,7 +69,7 @@ async def on_ready():
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
-    global last_patch_title
+    last_patch_title = load_last_patch_title()
 
     print(f'{bot.user} - パッチタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
@@ -127,7 +123,7 @@ async def before_check_patch_title():
 
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    global last_dev_titles
+    last_dev_titles = load_last_dev_title()
 
     print(f'{bot.user} - Devタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
@@ -149,15 +145,14 @@ async def check_dev_title():
         titles[h2_element.text] = dev_full_url
   
     if titles != last_dev_titles:
-        print("DEV titles were updated")
+        print("Dev titles were updated")
         channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
         for key, value in titles.items():
             if key not in last_dev_titles:
                 # メッセージを送信
                 await channel.send(f'### - [{key}]({value})')
-            
-            # 新しい/devタイトルをファイルに保存
-            save_last_dev_title(titles)
+                # 新しい/devタイトルをファイルに保存
+                save_last_dev_title(titles)
 
 @check_dev_title.before_loop
 async def before_check_dev_title():
@@ -165,7 +160,7 @@ async def before_check_dev_title():
 
 @tasks.loop(minutes=15)
 async def check_prime_title():
-    global last_prime_title
+    last_prime_title = load_last_prime_title()
 
     print(f'{bot.user} - Primeタイトルチェック開始')
     url = "https://www.leagueoflegends.com/ja-jp/news/community/"
