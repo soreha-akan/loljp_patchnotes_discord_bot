@@ -93,7 +93,7 @@ async def check_patch_title():
         # "Patch-Highlights_TW_1920x1080_JA.jpgを含む画像URLを取得
         page_soup = BeautifulSoup(page_html, 'html.parser')
         img_tags = page_soup.find_all('img', src=True)
-        target_src = "Patch-Highlights_TW_1920x1080_JA.jpg"
+        target_src = "Patch-Highlights_TW_1920x1080_JA"
         matching_img_tags = [img['src'] for img in img_tags if target_src in img['src']][0]
         
         # <h2>要素を取得
