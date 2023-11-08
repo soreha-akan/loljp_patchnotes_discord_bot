@@ -92,9 +92,18 @@ async def check_patch_title():
         
         # "Patch-Highlights_TW_1920x1080_JA.jpgを含む画像URLを取得
         page_soup = BeautifulSoup(page_html, 'html.parser')
+
         img_tags = page_soup.find_all('img', src=True)
         target_src = "Patch-Highlights_TW_1920x1080_JA"
-        matching_img_tags = [img['src'] for img in img_tags if target_src in img['src']][0]
+        match_string_img = [img['src'] for img in img_tags if target_src in img['src']]
+
+        cbox_class_img = page_soup.find('a', class_='skins cboxElement')
+        
+        img_url = None
+        if match_string_img:
+            img_url = match_string_img[0]
+        elif cbox_class_img:
+            img_url = cbox_class_img['href']
         
         # <h2>要素を取得
         h2_element = first_target_a_tag.find('h2', class_='style__Title-sc-1h41bzo-8 hvOSAW')
@@ -104,16 +113,18 @@ async def check_patch_title():
         if patch_title != last_patch_title:
             channel = bot.get_channel(1155455630585376858)  # パッチ情報を送信するチャンネルのIDを指定
 
-           # 画像ファイルのURLから画像をダウンロード
-            async with aiohttp.ClientSession() as session:
-                async with session.get(matching_img_tags) as image_response:
-                    image_data = await image_response.read()
-                  
-            # 画像をメッセージに添付して送信
-            image_file = discord.File(io.BytesIO(image_data), filename='patch_hilight_image.png')
-            await channel.send(f'### - [{patch_title}](<{patch_full_url}>)', file=image_file)
-            last_patch_title = patch_title
-            
+            if img_url is not None:
+                # 画像ファイルのURLから画像をダウンロード
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(img_url) as image_response:
+                        image_data = await image_response.read()
+                
+                # 画像をメッセージに添付して送信
+                image_file = discord.File(io.BytesIO(image_data), filename='patch_hilight_image.png')
+                await channel.send(f'### - [{patch_title}](<{patch_full_url}>)', file=image_file)
+            else:
+                await channel.send(f'### - [{patch_title}](<{patch_full_url}>)')
+
             # 新しいパッチタイトルをファイルに保存
             save_last_patch_title(patch_title)
 
@@ -191,7 +202,6 @@ async def check_prime_title():
                 prime_url = a_tag.get('href')
                 prime_full_url = urljoin(url, prime_url)
                 await channel.send(f'### - [{prime_title}]({prime_full_url})')
-                last_prime_title = prime_title
                 
                 # 新しいPrime情報タイトルをファイルに保存
                 save_last_prime_title(prime_title)
