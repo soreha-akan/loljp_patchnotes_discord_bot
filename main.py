@@ -34,7 +34,7 @@ def load_last_patch_title():
 def save_last_patch_title(title):
     with open("last_patch_title.json", "w") as file:
         json.dump(
-            {"last_patch_title": title}, file, ensure_ascii=False, indent=4, sort_keys=True, separators=(",", ": ")
+            {"last_patch_title": title}, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": ")
         )
 
 
@@ -55,7 +55,7 @@ def load_last_dev_title():
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(titles):
     with open("last_dev_title.json", "w") as file:
-        json.dump(titles, file, ensure_ascii=False, indent=4, sort_keys=True, separators=(",", ": "))
+        json.dump(titles, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": "))
 
 
 # ファイルから最後のPrime通知タイトルを読み取る
@@ -72,7 +72,7 @@ def load_last_prime_title():
 def save_last_prime_title(title):
     with open("last_prime_title.json", "w") as file:
         json.dump(
-            {"last_prime_title": title}, file, ensure_ascii=False, indent=4, sort_keys=True, separators=(",", ": ")
+            {"last_prime_title": title}, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": ")
         )
 
 
