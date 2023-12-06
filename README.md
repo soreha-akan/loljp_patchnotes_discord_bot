@@ -8,6 +8,8 @@
 
   authorない場合もあるのでif文でTrueのときのみ
 * file分割する
+* https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/ のように、PrimeGamingの記事のみを羅列するルーティングが存在するのか？RiotGamesJPに聞いてみる
+
 
 ### 実装済み
 * _辞書型でデータ作って更新履歴管理_

@@ -34,7 +34,12 @@ def load_last_patch_title():
 def save_last_patch_title(title):
     with open("last_patch_title.json", "w") as file:
         json.dump(
-            {"last_patch_title": title}, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": ")
+            {"last_patch_title": title},
+            file,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            separators=(",", ": "),
         )
 
 
@@ -55,7 +60,14 @@ def load_last_dev_title():
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(titles):
     with open("last_dev_title.json", "w") as file:
-        json.dump(titles, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": "))
+        json.dump(
+            titles,
+            file,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            separators=(",", ": "),
+        )
 
 
 # ファイルから最後のPrime通知タイトルを読み取る
@@ -72,7 +84,12 @@ def load_last_prime_title():
 def save_last_prime_title(title):
     with open("last_prime_title.json", "w") as file:
         json.dump(
-            {"last_prime_title": title}, file, ensure_ascii=False, indent=2, sort_keys=True, separators=(",", ": ")
+            {"last_prime_title": title},
+            file,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            separators=(",", ": "),
         )
 
 
@@ -96,7 +113,8 @@ async def check_patch_title():
 
     soup = BeautifulSoup(html, "html.parser")
     target_a_tags = soup.find_all(
-        "a", class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible"
+        "a",
+        class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible",
     )
 
     if target_a_tags:
@@ -125,7 +143,9 @@ async def check_patch_title():
             img_url = cbox_class_img["href"]
 
         # <h2>要素を取得
-        h2_element = first_target_a_tag.find("h2", class_="style__Title-sc-1h41bzo-8 hvOSAW")
+        h2_element = first_target_a_tag.find(
+            "h2", class_="style__Title-sc-1h41bzo-8 hvOSAW"
+        )
 
         patch_title = h2_element.text
 
@@ -139,8 +159,12 @@ async def check_patch_title():
                         image_data = await image_response.read()
 
                 # 画像をメッセージに添付して送信
-                image_file = discord.File(io.BytesIO(image_data), filename="patch_hilight_image.png")
-                await channel.send(f"### - [{patch_title}](<{patch_full_url}>)", file=image_file)
+                image_file = discord.File(
+                    io.BytesIO(image_data), filename="patch_hilight_image.png"
+                )
+                await channel.send(
+                    f"### - [{patch_title}](<{patch_full_url}>)", file=image_file
+                )
             else:
                 await channel.send(f"### - [{patch_title}](<{patch_full_url}>)")
 
@@ -165,7 +189,8 @@ async def check_dev_title():
 
     soup = BeautifulSoup(html, "html.parser")
     target_a_tags = soup.find_all(
-        "a", class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible"
+        "a",
+        class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible",
     )
 
     titles = {}
@@ -213,7 +238,8 @@ async def check_prime_title():
 
     soup = BeautifulSoup(html, "html.parser")
     target_a_tags = soup.find_all(
-        "a", class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible"
+        "a",
+        class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible",
     )
 
     for a_tag in target_a_tags:
@@ -232,7 +258,9 @@ async def check_prime_title():
             or "無料" in prime_title
         ):
             if prime_title != last_prime_title:
-                channel = bot.get_channel(1155455630585376858)  # Prime情報を送信するチャンネルのIDを指定
+                channel = bot.get_channel(
+                    1155455630585376858
+                )  # Prime情報を送信するチャンネルのIDを指定
                 # メッセージを送信
                 prime_url = a_tag.get("href")
                 prime_full_url = urljoin(url, prime_url)
