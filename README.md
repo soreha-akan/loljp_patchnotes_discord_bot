@@ -1,6 +1,7 @@
 ## 実装したい機能
 ### 実装予定
 * 発信するChannelの指定
+* 記事の更新を検知するAPI的な部分とチャット送信する部分は分けた方がいいかも？
 * 必要なLog収集
 * Authorを取得して表示
   
@@ -9,6 +10,9 @@
   authorない場合もあるのでif文でTrueのときのみ
 * file分割する
 * https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/ のように、PrimeGamingの記事のみを羅列するルーティングが存在するのか？RiotGamesJPに聞いてみる
+* https://lolesports.com/news
+  * フィルター　動画
+  * dev update除外
 
 
 ### 実装済み
