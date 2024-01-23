@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from discord.ext import commands, tasks
 from urllib.parse import urljoin
 from keep_alive import keep_alive
+from google.cloud import storage
 
 intents = discord.Intents.default()
 intents.typing = False
@@ -19,29 +20,36 @@ PREFIX = "!"  # コマンドプリフィックス
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=intents)
 
+bucket_name = 'loljp-discord-bot'
+patch_title_json_path = 'last-update-json/last_patch_title.json'
+dev_title_json_path = 'last-update-json/last_dev_title.json'
+prime_title_json_path = 'last-update-json/last_prime_title.json'
 
 # ファイルから最後のパッチタイトルを読み取る
 def load_last_patch_title():
-    try:
-        with open("last_patch_title.json", "r") as file:
-            data = json.load(file)
-            return data.get("last_patch_title", "")
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ""
+    client = storage.Client()
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(patch_title_json_path)
 
+    content = blob.download_as_text()
+
+    return json.loads(content)
 
 # ファイルに最後のパッチタイトルを保存
 def save_last_patch_title(title):
-    with open("last_patch_title.json", "w") as file:
-        json.dump(
-            {"last_patch_title": title},
-            file,
+        data = {"last_patch_title": title}
+        content = json.dumps(
+            data,
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
             separators=(",", ": "),
         )
 
+        client = storage.Client()
+        bucket = client.get_bucket(bucket_name)
+        blob = bucket.blob(patch_title_json_path)
+        blob.upload_from_string(content)
 
 # ファイルから最後の/devタイトルを読み取る
 def load_last_dev_title():
