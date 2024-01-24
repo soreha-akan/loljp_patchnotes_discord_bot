@@ -24,6 +24,7 @@ bucket_name = 'loljp-discord-bot'
 patch_title_json_path = 'last-update-json/last_patch_title.json'
 dev_title_json_path = 'last-update-json/last_dev_title.json'
 prime_title_json_path = 'last-update-json/last_prime_title.json'
+channel_id = 1199592409525399653
 
 # ファイルから最後のパッチタイトルを読み取る
 def load_last_patch_title():
@@ -158,7 +159,7 @@ async def check_patch_title():
         patch_title = h2_element.text
 
         if patch_title != last_patch_title:
-            channel = bot.get_channel(1155455630585376858)  # パッチ情報を送信するチャンネルのIDを指定
+            channel = bot.get_channel(channel_id)  # パッチ情報を送信するチャンネルのIDを指定
 
             if img_url is not None:
                 # 画像ファイルのURLから画像をダウンロード
@@ -214,7 +215,7 @@ async def check_dev_title():
     for key, value in titles.items():
         if key not in last_dev_titles:
             print("Dev titles were updated")
-            channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
+            channel = bot.get_channel(channel_id)  # /dev情報を送信するチャンネルのIDを指定
             # メッセージを送信
             await channel.send(f"### - [{key}]({value})")
             # last_dev_titlesの末尾にtitleを追加
@@ -267,7 +268,7 @@ async def check_prime_title():
         ):
             if prime_title != last_prime_title:
                 channel = bot.get_channel(
-                    1155455630585376858
+                    channel_id
                 )  # Prime情報を送信するチャンネルのIDを指定
                 # メッセージを送信
                 prime_url = a_tag.get("href")
