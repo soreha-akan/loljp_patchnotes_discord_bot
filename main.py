@@ -26,18 +26,22 @@ patch_title_json_path = 'last-update-json/last_patch_title.json'
 dev_title_json_path = 'last-update-json/last_dev_title.json'
 prime_title_json_path = 'last-update-json/last_prime_title.json'
 
-channel_id = 1155455630585376858 # announce
-# channel_id = 1199592409525399653 # dev
+# channel_id = 1155455630585376858 # announce
+channel_id = 1199592409525399653 # dev
 
-# ファイルから最後のパッチタイトルを読み取る
-def load_last_patch_title():
+# GCS上のjsonファイルから直前の更新内容を取得する
+def load_last_titles(json_path):
     bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(patch_title_json_path)
-
+    blob = bucket.blob(json_path)
     content = blob.download_as_text()
 
     data = json.loads(content)
-    return data.get("last_patch_title", "")
+    if json_path == 'last-update-json/last_patch_title.json':
+        data = data.get("last_patch_title", "")
+    if json_path == 'last-update-json/last_prime_title.json':
+        data = data.get("last_prime_title", "")
+    return data
+
 
 # ファイルに最後のパッチタイトルを保存
 def save_last_patch_title(title):
@@ -54,15 +58,6 @@ def save_last_patch_title(title):
     blob = bucket.blob(patch_title_json_path)
     blob.upload_from_string(content, content_type="application/json")
 
-# ファイルから最後の/devタイトルを読み取る
-def load_last_dev_title():
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(dev_title_json_path)
-
-    content = blob.download_as_text()
-
-    return json.loads(content)
-    
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(titles):
     content = json.dumps(
@@ -76,18 +71,6 @@ def save_last_dev_title(titles):
     bucket = client.get_bucket(bucket_name)
     blob = bucket.blob(dev_title_json_path)
     blob.upload_from_string(content, content_type="application/json")
-
-
-# ファイルから最後のPrime通知タイトルを読み取る
-def load_last_prime_title():
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(prime_title_json_path)
-
-    content = blob.download_as_text()
-    data = json.loads(content)
-    return data.get("last_prime_title", "")
-
-
 
 # ファイルに最後のPrime通知タイトルを保存
 def save_last_prime_title(title):
@@ -115,7 +98,7 @@ async def on_ready():
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
-    last_patch_title = load_last_patch_title()
+    last_patch_title = load_last_titles('last-update-json/last_patch_title.json')
 
     print(f"{bot.user} - パッチタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
@@ -191,7 +174,7 @@ async def before_check_patch_title():
 
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    last_dev_titles = load_last_dev_title()
+    last_dev_titles = load_last_titles('last-update-json/last_dev_title.json')
 
     print(f"{bot.user} - Devタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
@@ -240,7 +223,7 @@ async def before_check_dev_title():
 
 @tasks.loop(minutes=15)
 async def check_prime_title():
-    last_prime_title = load_last_prime_title()
+    last_prime_title = load_last_titles('last-update-json/last_prime_title.json')
 
     print(f"{bot.user} - Primeタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/community/"
