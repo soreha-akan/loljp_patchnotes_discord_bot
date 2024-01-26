@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from discord.ext import commands, tasks
 from urllib.parse import urljoin
 from keep_alive import keep_alive
+from google.cloud import storage
 
 intents = discord.Intents.default()
 intents.typing = False
@@ -15,82 +16,93 @@ intents.message_content = True
 
 keep_alive()
 TOKEN = os.environ["DISCORD_BOT_TOKEN"]
+client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
 PREFIX = "!"  # コマンドプリフィックス
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=intents)
 
+bucket_name = 'loljp-discord-bot'
+patch_title_json_path = 'last-update-json/last_patch_title.json'
+dev_title_json_path = 'last-update-json/last_dev_title.json'
+prime_title_json_path = 'last-update-json/last_prime_title.json'
+
+channel_id = 1155455630585376858 # announce
+# channel_id = 1199592409525399653 # dev
 
 # ファイルから最後のパッチタイトルを読み取る
 def load_last_patch_title():
-    try:
-        with open("last_patch_title.json", "r") as file:
-            data = json.load(file)
-            return data.get("last_patch_title", "")
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ""
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(patch_title_json_path)
 
+    content = blob.download_as_text()
+
+    data = json.loads(content)
+    return data.get("last_patch_title", "")
 
 # ファイルに最後のパッチタイトルを保存
 def save_last_patch_title(title):
-    with open("last_patch_title.json", "w") as file:
-        json.dump(
-            {"last_patch_title": title},
-            file,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-            separators=(",", ": "),
-        )
+    data = {"last_patch_title": title}
+    content = json.dumps(
+        data,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+        separators=(",", ": "),
+    )
 
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(patch_title_json_path)
+    blob.upload_from_string(content, content_type="application/json")
 
 # ファイルから最後の/devタイトルを読み取る
 def load_last_dev_title():
-    try:
-        with open("last_dev_title.json", "r") as file:
-            content = file.read()
-            if not content:
-                # ファイルが空の場合、空の辞書型配列を返す
-                return {}
-            return json.loads(content)
-    except (FileNotFoundError, json.JSONDecodeError):
-        # ファイルが存在しないかJSONデコードエラーが発生した場合も空の辞書型配列を返す
-        return {}
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(dev_title_json_path)
 
+    content = blob.download_as_text()
 
+    return json.loads(content)
+    
 # ファイルに最後の/devタイトルを保存
 def save_last_dev_title(titles):
-    with open("last_dev_title.json", "w") as file:
-        json.dump(
-            titles,
-            file,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-            separators=(",", ": "),
-        )
+    content = json.dumps(
+        titles,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+        separators=(",", ": "),
+    )
+
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(dev_title_json_path)
+    blob.upload_from_string(content, content_type="application/json")
 
 
 # ファイルから最後のPrime通知タイトルを読み取る
 def load_last_prime_title():
-    try:
-        with open("last_prime_title.json", "r") as file:
-            data = json.load(file)
-            return data.get("last_prime_title", "")
-    except (FileNotFoundError, json.JSONDecodeError):
-        return ""
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(prime_title_json_path)
+
+    content = blob.download_as_text()
+    data = json.loads(content)
+    return data.get("last_prime_title", "")
+
 
 
 # ファイルに最後のPrime通知タイトルを保存
 def save_last_prime_title(title):
-    with open("last_prime_title.json", "w") as file:
-        json.dump(
-            {"last_prime_title": title},
-            file,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-            separators=(",", ": "),
-        )
+    data = {"last_prime_title": title}
+    content = json.dumps(
+        data,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+        separators=(",", ": "),
+    )
+
+    bucket = client.get_bucket(bucket_name)
+    blob = bucket.blob(prime_title_json_path)
+    blob.upload_from_string(content, content_type="application/json")
 
 
 @bot.event
@@ -150,7 +162,7 @@ async def check_patch_title():
         patch_title = h2_element.text
 
         if patch_title != last_patch_title:
-            channel = bot.get_channel(1155455630585376858)  # パッチ情報を送信するチャンネルのIDを指定
+            channel = bot.get_channel(channel_id)  # パッチ情報を送信するチャンネルのIDを指定
 
             if img_url is not None:
                 # 画像ファイルのURLから画像をダウンロード
@@ -206,7 +218,7 @@ async def check_dev_title():
     for key, value in titles.items():
         if key not in last_dev_titles:
             print("Dev titles were updated")
-            channel = bot.get_channel(1155455630585376858)  # /dev情報を送信するチャンネルのIDを指定
+            channel = bot.get_channel(channel_id)  # /dev情報を送信するチャンネルのIDを指定
             # メッセージを送信
             await channel.send(f"### - [{key}]({value})")
             # last_dev_titlesの末尾にtitleを追加
@@ -259,7 +271,7 @@ async def check_prime_title():
         ):
             if prime_title != last_prime_title:
                 channel = bot.get_channel(
-                    1155455630585376858
+                    channel_id
                 )  # Prime情報を送信するチャンネルのIDを指定
                 # メッセージを送信
                 prime_url = a_tag.get("href")
