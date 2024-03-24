@@ -18,104 +18,50 @@ keep_alive()
 TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
 PREFIX = "!"  # コマンドプリフィックス
-
 bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=intents)
 
 bucket_name = 'loljp-discord-bot'
+bucket = client.get_bucket(bucket_name)
 patch_title_json_path = 'last-update-json/last_patch_title.json'
 dev_title_json_path = 'last-update-json/last_dev_title.json'
-prime_title_json_path = 'last-update-json/last_prime_title.json'
 
 channel_id = 1155455630585376858 # announce
 # channel_id = 1199592409525399653 # dev
 
-# ファイルから最後のパッチタイトルを読み取る
-def load_last_patch_title():
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(patch_title_json_path)
 
+
+# GCS上のjsonファイルから直近の更新内容を取得する
+def load_last_titles(json_path):
+    blob = bucket.blob(json_path)
     content = blob.download_as_text()
 
     data = json.loads(content)
-    return data.get("last_patch_title", "")
+    if json_path == patch_title_json_path:
+        data = data.get("last_patch_title", "")
+    return data
 
-# ファイルに最後のパッチタイトルを保存
-def save_last_patch_title(title):
-    data = {"last_patch_title": title}
+# GCS上のjsonファイルに直近の更新内容を保存する
+def save_last_titles(titles, json_path):
     content = json.dumps(
-        data,
-        ensure_ascii=False,
-        indent=2,
-        sort_keys=True,
-        separators=(",", ": "),
+    titles,
+    ensure_ascii=False,
+    indent=2,
+    sort_keys=True,
+    separators=(",", ": "),
     )
 
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(patch_title_json_path)
+    blob = bucket.blob(json_path)
     blob.upload_from_string(content, content_type="application/json")
-
-# ファイルから最後の/devタイトルを読み取る
-def load_last_dev_title():
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(dev_title_json_path)
-
-    content = blob.download_as_text()
-
-    return json.loads(content)
-    
-# ファイルに最後の/devタイトルを保存
-def save_last_dev_title(titles):
-    content = json.dumps(
-        titles,
-        ensure_ascii=False,
-        indent=2,
-        sort_keys=True,
-        separators=(",", ": "),
-    )
-
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(dev_title_json_path)
-    blob.upload_from_string(content, content_type="application/json")
-
-
-# ファイルから最後のPrime通知タイトルを読み取る
-def load_last_prime_title():
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(prime_title_json_path)
-
-    content = blob.download_as_text()
-    data = json.loads(content)
-    return data.get("last_prime_title", "")
-
-
-
-# ファイルに最後のPrime通知タイトルを保存
-def save_last_prime_title(title):
-    data = {"last_prime_title": title}
-    content = json.dumps(
-        data,
-        ensure_ascii=False,
-        indent=2,
-        sort_keys=True,
-        separators=(",", ": "),
-    )
-
-    bucket = client.get_bucket(bucket_name)
-    blob = bucket.blob(prime_title_json_path)
-    blob.upload_from_string(content, content_type="application/json")
-
 
 @bot.event
 async def on_ready():
     print(f"{bot.user}のログインに成功！")
     check_patch_title.start()
     check_dev_title.start()
-    check_prime_title.start()
-
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
-    last_patch_title = load_last_patch_title()
+    last_patch_title = load_last_titles(patch_title_json_path)
 
     print(f"{bot.user} - パッチタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
@@ -180,8 +126,9 @@ async def check_patch_title():
             else:
                 await channel.send(f"### - [{patch_title}](<{patch_full_url}>)")
 
+            title_json = {"last_patch_title": patch_title}
             # 新しいパッチタイトルをファイルに保存
-            save_last_patch_title(patch_title)
+            save_last_titles(title_json, patch_title_json_path)
 
 
 @check_patch_title.before_loop
@@ -191,7 +138,7 @@ async def before_check_patch_title():
 
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    last_dev_titles = load_last_dev_title()
+    last_dev_titles = load_last_titles(dev_title_json_path)
 
     print(f"{bot.user} - Devタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
@@ -218,7 +165,7 @@ async def check_dev_title():
     for key, value in titles.items():
         if key not in last_dev_titles:
             print("Dev titles were updated")
-            channel = bot.get_channel(channel_id)  # /dev情報を送信するチャンネルのIDを指定
+            channel = bot.get_channel(channel_id)
             # メッセージを送信
             await channel.send(f"### - [{key}]({value})")
             # last_dev_titlesの末尾にtitleを追加
@@ -229,63 +176,13 @@ async def check_dev_title():
                 last_dev_titles_list = last_dev_titles_list[-20:]
 
             # 辞書に変換して保存
-            last_dev_titles = dict(last_dev_titles_list)
-            save_last_dev_title(last_dev_titles)
+            title_json = dict(last_dev_titles_list)
+            save_last_titles(title_json, dev_title_json_path)
 
 
 @check_dev_title.before_loop
 async def before_check_dev_title():
     await bot.wait_until_ready()
-
-
-@tasks.loop(minutes=15)
-async def check_prime_title():
-    last_prime_title = load_last_prime_title()
-
-    print(f"{bot.user} - Primeタイトルチェック開始")
-    url = "https://www.leagueoflegends.com/ja-jp/news/community/"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            html = await response.text()
-
-    soup = BeautifulSoup(html, "html.parser")
-    target_a_tags = soup.find_all(
-        "a",
-        class_="style__Wrapper-sc-1h41bzo-0 style__ResponsiveWrapper-sc-1h41bzo-13 eIUhoC cGAodJ isVisible",
-    )
-
-    for a_tag in target_a_tags:
-        # <h2>要素を取得
-        h2_element = a_tag.find("h2", class_="style__Title-sc-1h41bzo-8 hvOSAW")
-
-        # h2要素のテキストを取得
-        prime_title = h2_element.text if h2_element else ""
-
-        # テキスト条件を追加
-        if (
-            "無料Prime報酬" in prime_title
-            or "RPなどを無料で手に入れよう" in prime_title
-            or "Primeの無料報酬" in prime_title
-            or "Prime" in prime_title
-            or "無料" in prime_title
-        ):
-            if prime_title != last_prime_title:
-                channel = bot.get_channel(
-                    channel_id
-                )  # Prime情報を送信するチャンネルのIDを指定
-                # メッセージを送信
-                prime_url = a_tag.get("href")
-                prime_full_url = urljoin(url, prime_url)
-                await channel.send(f"### - [{prime_title}]({prime_full_url})")
-                # 新しいPrime情報タイトルをファイルに保存
-                save_last_prime_title(prime_title)
-            break  # 条件を満たす要素が見つかったらループを終了
-
-
-@check_prime_title.before_loop
-async def before_check_prime_title():
-    await bot.wait_until_ready()
-
 
 try:
     bot.run(TOKEN)
