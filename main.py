@@ -9,6 +9,19 @@ from urllib.parse import urljoin
 from keep_alive import keep_alive
 from google.cloud import storage
 
+
+global intents
+global TOKEN
+global client
+global PREFIX
+global bot
+global bucket_name
+global bucket
+global patch_title_json_path
+global dev_title_json_path
+global guild_list_json_path
+global channel_id
+
 intents = discord.Intents.default()
 intents.typing = False
 intents.presences = False
@@ -22,13 +35,21 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=in
 
 bucket_name = 'loljp-discord-bot'
 bucket = client.get_bucket(bucket_name)
-patch_title_json_path = 'last-update-json/last_patch_title.json'
-dev_title_json_path = 'last-update-json/last_dev_title.json'
+patch_title_json_path = 'last_patch_title.json'
+dev_title_json_path = 'last_dev_title.json'
+guild_list_json_path = 'guild_list.json'
 
-channel_id = 1155455630585376858 # announce
-# channel_id = 1199592409525399653 # dev
+# channel_id = 1155455630585376858 # announce
+channel_id = 1199592409525399653 # dev
 
+# GCS上のjsonファイルからサーバーリストを取得する
+def load_guild_list():
+    global guild_list
 
+    blob = bucket.blob(guild_list_json_path)
+    content = blob.download_as_text()
+    data = json.loads(content)
+    guild_list = data
 
 # GCS上のjsonファイルから直近の更新内容を取得する
 def load_last_titles(json_path):
@@ -39,6 +60,21 @@ def load_last_titles(json_path):
     if json_path == patch_title_json_path:
         data = data.get("last_patch_title", "")
     return data
+
+
+# GCS上のjsonファイルにサーバーリストを保存する
+def save_guild_list():
+    content = json.dumps(
+    guild_list,
+    ensure_ascii=False,
+    indent=2,
+    sort_keys=True,
+    separators=(",", ": "),
+    )
+
+    blob = bucket.blob(guild_list_json_path)
+    blob.upload_from_string(content, content_type="application/json")
+
 
 # GCS上のjsonファイルに直近の更新内容を保存する
 def save_last_titles(titles, json_path):
@@ -53,15 +89,101 @@ def save_last_titles(titles, json_path):
     blob = bucket.blob(json_path)
     blob.upload_from_string(content, content_type="application/json")
 
+def make_channel_id_list():
+    channel_id_list = [entry["channel_id"] for entry in guild_list]
+
 @bot.event
 async def on_ready():
     print(f"{bot.user}のログインに成功！")
     check_patch_title.start()
     check_dev_title.start()
+    load_guild_list()
+
+@bot.event
+async def on_guild_join(guild):
+    for item in guild_list:
+        if "guild_id" in item and item["guild_id"] == guild.id:
+            return
+
+    new_guild_info = {
+        "guild_name": guild.name,
+        "guild_id": guild.id,
+        "channel_name": None,
+        "channel_id": None,
+        "is_enabled": False
+    }
+
+    guild_list.append(new_guild_info)
+    save_guild_list()
+
+@bot.event
+async def on_guild_remove(guild):
+    guild_list = [item for item in guild_list if item.get('guild_id') != guild.id]
+    save_guild_list()
+
+@bot.command()
+async def start(ctx):
+    old_channel_name = None
+    message = None
+    result = False
+    channel_duplicate = False
+    for element in guild_list:
+        if element["guild_id"] == ctx.guild.id:
+            if element["channel_id"] == ctx.channel.id:
+                result = True
+                channel_duplicate = True
+                break
+            if not element["channel_name"] is None:
+                old_channel_name = element["channel_name"]
+            element["channel_name"] = ctx.channel.name
+            element["channel_id"] = ctx.channel.id
+            element["is_enabled"] = True
+            result = True
+            save_guild_list()
+
+    if not result:
+        message = f"`!start`コマンドの実行に失敗しました。\nbotをサーバーから削除し、再度追加することで改善されるかもしれません。\n詳しくは開発者にお問い合わせください。"
+    elif channel_duplicate:
+        message = f"`!start`コマンドは以前にこのチャンネルで実行されています。\nお知らせを送信するチャンネルを変更するには別のチャンネルで`!start`コマンドを実行してください。"
+    elif old_channel_name is None:
+        message = f"`!start`コマンドが実行されました！\n次回から ***{ctx.channel.name}*** チャンネルで更新をお知らせします！\nお知らせを停止するには`!stop`コマンドを実行してください。"
+    else:
+        message = f"`!start`コマンドが実行されました！\n更新をお知らせするチャンネルを ***{old_channel_name}*** チャンネルから ***{ctx.channel.name}*** チャンネルに変更します！"
+    
+    await ctx.send(message)
+
+@bot.command()
+async def stop(ctx):
+    old_channel_name = None
+    message = None
+    result = False
+    wrong_channel = False
+    for element in guild_list:
+        if element["guild_id"] == ctx.guild.id:
+            if not element["channel_id"] == ctx.channel.id:
+                result = True
+                wrong_channel = True
+                old_channel_name = element["channel_name"]
+                break
+            element["channel_name"] = None
+            element["channel_id"] = None
+            element["is_enabled"] = False
+            result = True
+            save_guild_list()
+
+    if not result:
+        message = f"`!stop`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
+    elif wrong_channel:
+        message = f"`!stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは ***{old_channel_name}*** チャンネルです。"
+    else:
+        message = f"`!stop`コマンドが実行されました。\n更新お知らせを終了します。\nお知らせを再開するには任意のチャンネルで`!start`コマンドを実行してください。"
+        
+    await ctx.send(message)
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
-    last_patch_title = load_last_titles(patch_title_json_path)
+    if not is_defined(last_patch_title):
+        last_patch_title = load_last_titles(patch_title_json_path)
 
     print(f"{bot.user} - パッチタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
@@ -130,16 +252,15 @@ async def check_patch_title():
             # 新しいパッチタイトルをファイルに保存
             save_last_titles(title_json, patch_title_json_path)
 
-
 @check_patch_title.before_loop
 async def before_check_patch_title():
     await bot.wait_until_ready()
 
-
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    last_dev_titles = load_last_titles(dev_title_json_path)
-
+    if not is_defined(last_dev_titles):
+        last_dev_titles = load_last_titles(dev_title_json_path)
+    
     print(f"{bot.user} - Devタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
     async with aiohttp.ClientSession() as session:
@@ -179,10 +300,13 @@ async def check_dev_title():
             title_json = dict(last_dev_titles_list)
             save_last_titles(title_json, dev_title_json_path)
 
-
 @check_dev_title.before_loop
 async def before_check_dev_title():
     await bot.wait_until_ready()
+
+# 変数が定義されているか
+def is_defined(variable_name):
+    return variable_name in globals() or variable_name in locals()
 
 try:
     bot.run(TOKEN)
