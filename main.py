@@ -9,7 +9,6 @@ from urllib.parse import urljoin
 from keep_alive import keep_alive
 from google.cloud import storage
 
-
 global intents
 global TOKEN
 global client
@@ -35,12 +34,16 @@ bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=in
 
 bucket_name = 'loljp-discord-bot'
 bucket = client.get_bucket(bucket_name)
-patch_title_json_path = 'last_patch_title.json'
-dev_title_json_path = 'last_dev_title.json'
-guild_list_json_path = 'guild_list.json'
+patch_title_json_path = 'product/last_patch_title.json'
+dev_title_json_path = 'product/last_dev_title.json'
+guild_list_json_path = 'product/guild_list.json'
 
-# channel_id = 1155455630585376858 # announce
-channel_id = 1199592409525399653 # dev
+is_develop = True
+if is_develop:
+    patch_title_json_path = 'develop/last_patch_title.json'
+    dev_title_json_path = 'develop/last_dev_title.json'
+    guild_list_json_path = 'develop/guild_list.json'
+
 
 # GCS上のjsonファイルからサーバーリストを取得する
 def load_guild_list():
@@ -61,7 +64,6 @@ def load_last_titles(json_path):
         data = data.get("last_patch_title", "")
     return data
 
-
 # GCS上のjsonファイルにサーバーリストを保存する
 def save_guild_list():
     content = json.dumps(
@@ -74,7 +76,6 @@ def save_guild_list():
 
     blob = bucket.blob(guild_list_json_path)
     blob.upload_from_string(content, content_type="application/json")
-
 
 # GCS上のjsonファイルに直近の更新内容を保存する
 def save_last_titles(titles, json_path):
@@ -89,9 +90,13 @@ def save_last_titles(titles, json_path):
     blob = bucket.blob(json_path)
     blob.upload_from_string(content, content_type="application/json")
 
-def make_channel_id_list():
-    channel_id_list = [entry["channel_id"] for entry in guild_list]
-
+def get_enabled_channel_id_list():
+    enabled_channel_list = []
+    for element in guild_list:
+        if element["is_enabled"]:
+            enabled_channel_list.append(element["channel_id"])
+    return enabled_channel_list
+    
 @bot.event
 async def on_ready():
     print(f"{bot.user}のログインに成功！")
