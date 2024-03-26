@@ -118,7 +118,7 @@ async def on_guild_remove(guild):
 @tree.command(name='start', description='更新のお知らせを開始します。') 
 async def start_command(ctx): 
     guild_list = load_guild_list()
-    old_channel_name = None
+    old_channel_id = None
     message = None
     result = False
     channel_duplicate = False
@@ -128,38 +128,47 @@ async def start_command(ctx):
                 result = True
                 channel_duplicate = True
                 break
-            if not element["channel_name"] is None:
-                old_channel_name = element["channel_name"]
+            if not element["channel_id"] is None:
+                old_channel_id = element["channel_id"]
             element["channel_name"] = ctx.channel.name
             element["channel_id"] = ctx.channel.id
             element["is_enabled"] = True
             result = True
             save_guild_list(guild_list)
 
+    base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
+    current_channel_url = base_channel_url + str(ctx.channel.id)
+    old_channel_url = base_channel_url + str(old_channel_id)
+
     if not result:
         message = f"`/start`コマンドの実行に失敗しました。\nbotをサーバーから削除し、再度追加することで改善されるかもしれません。\n詳しくは開発者にお問い合わせください。"
     elif channel_duplicate:
         message = f"`/start`コマンドは以前にこのチャンネルで実行されています。\nお知らせを送信するチャンネルを変更するには別のチャンネルで`/start`コマンドを実行してください。"
-    elif old_channel_name is None:
-        message = f"`/start`コマンドが実行されました！\n次回から ***{ctx.channel.name}*** チャンネルで更新をお知らせします！\nお知らせを停止するには`/stop`コマンドを実行してください。"
+    elif old_channel_id is None:
+        message = f"`/start`コマンドが実行されました！\n次回から {current_channel_url} チャンネルで更新をお知らせします！\nお知らせを停止するには`/stop`コマンドを実行してください。"
     else:
-        message = f"`/start`コマンドが実行されました！\n更新をお知らせするチャンネルを ***{old_channel_name}*** チャンネルから ***{ctx.channel.name}*** チャンネルに変更します！"
+        message = f"`/start`コマンドが実行されました！\n更新をお知らせするチャンネルを {old_channel_url} チャンネルから {current_channel_url} チャンネルに変更します！"
     
     await ctx.response.send_message(message)
 
 @tree.command(name='stop', description='更新のお知らせを停止します。')
 async def stop_command(ctx):
     guild_list = load_guild_list()
-    old_channel_name = None
+    current_channel_id = None
     message = None
     result = False
+    already_stop = None
     wrong_channel = False
     for element in guild_list:
         if element["guild_id"] == ctx.guild.id:
+            if not element["is_enabled"]:
+                result = True
+                already_stop = True
+                break
             if not element["channel_id"] == ctx.channel.id:
                 result = True
                 wrong_channel = True
-                old_channel_name = element["channel_name"]
+                current_channel_id = element["channel_id"]
                 break
             element["channel_name"] = None
             element["channel_id"] = None
@@ -167,13 +176,52 @@ async def stop_command(ctx):
             result = True
             save_guild_list(guild_list)
 
+    base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
+    current_channel_url = base_channel_url + str(current_channel_id)
+
     if not result:
         message = f"`/stop`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
+    elif already_stop:
+        message = f"更新通知は現在有効ではありません。\n`/stop`コマンドは実行されませんでした。"
     elif wrong_channel:
-        message = f"`/stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは ***{old_channel_name}*** チャンネルです。"
+        message = f"`/stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは {current_channel_url} チャンネルです。"
     else:
         message = f"`/stop`コマンドが実行されました。\n更新お知らせを終了します。\nお知らせを再開するには任意のチャンネルで`/start`コマンドを実行してください。"
         
+    await ctx.response.send_message(message)
+
+@tree.command(name='status', description='botの稼働状況を表示します。') 
+async def start_command(ctx): 
+    guild_list = load_guild_list()
+    message = None
+    result = False
+    current_channel_id = None
+    is_enabled = None
+    for element in guild_list:
+        if element["guild_id"] == ctx.guild.id:
+            current_channel_id = element["channel_id"]
+            is_enabled = element["is_enabled"]
+            result = True
+
+    base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
+    current_channel_url = base_channel_url + str(current_channel_id)
+
+    if not result:
+        message = f"`/status`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
+    elif is_enabled:
+        message = f"更新通知は現在有効になっています。\nお知らせを送信するチャンネルは {current_channel_url} チャンネルです。"
+    else:
+        message = f"更新通知は現在無効になっています。\n有効にするには任意のチャンネルで`/start`コマンドを実行してください。"
+    
+    await ctx.response.send_message(message)
+
+@tree.command(name='help', description='コマンドの一覧を表示します。') 
+async def start_command(ctx): 
+    message = f"`/start`\nコマンドを使用したチャンネルで更新通知を有効にします。\nすでに他のチャンネルで更新通知を利用している場合、発信するチャンネルを変更します。\n\n"
+    message += f"`/stop`\n更新通知を無効にします。\n更新通知が行われているチャンネルでのみ使用可能です。\n\n"
+    message += f"`/status`\nbotの稼働状況と更新通知が行われるチャンネルを確認できます。\n\n"
+    message += f"`/help`\nコマンドの一覧を表示します。（現在あなたが読んでいるものです。）"
+    
     await ctx.response.send_message(message)
 
 @tasks.loop(minutes=15)
