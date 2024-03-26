@@ -4,36 +4,26 @@ import io
 import json
 import os
 from bs4 import BeautifulSoup
-from discord.ext import commands, tasks
+from discord import Intents, Client
+from discord.app_commands import CommandTree
+from discord.ext import tasks
 from urllib.parse import urljoin
 from keep_alive import keep_alive
 from google.cloud import storage
 
-global intents
-global TOKEN
-global client
-global PREFIX
-global bot
-global bucket_name
-global bucket
-global patch_title_json_path
-global dev_title_json_path
-global guild_list_json_path
-global channel_id
-
-intents = discord.Intents.default()
+intents = Intents.default()
 intents.typing = False
 intents.presences = False
 intents.message_content = True
 
 keep_alive()
 TOKEN = os.environ["DISCORD_BOT_TOKEN"]
-client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
-PREFIX = "!"  # コマンドプリフィックス
-bot = commands.Bot(command_prefix=commands.when_mentioned_or(PREFIX), intents=intents)
+storage_client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
+bot = Client(intents=intents)
+tree = CommandTree(bot)
 
 bucket_name = 'loljp-discord-bot'
-bucket = client.get_bucket(bucket_name)
+bucket = storage_client.get_bucket(bucket_name)
 patch_title_json_path = 'product/last_patch_title.json'
 dev_title_json_path = 'product/last_dev_title.json'
 guild_list_json_path = 'product/guild_list.json'
@@ -44,15 +34,12 @@ if is_develop:
     dev_title_json_path = 'develop/last_dev_title.json'
     guild_list_json_path = 'develop/guild_list.json'
 
-
 # GCS上のjsonファイルからサーバーリストを取得する
 def load_guild_list():
-    global guild_list
-
     blob = bucket.blob(guild_list_json_path)
     content = blob.download_as_text()
     data = json.loads(content)
-    guild_list = data
+    return data
 
 # GCS上のjsonファイルから直近の更新内容を取得する
 def load_last_titles(json_path):
@@ -65,7 +52,7 @@ def load_last_titles(json_path):
     return data
 
 # GCS上のjsonファイルにサーバーリストを保存する
-def save_guild_list():
+def save_guild_list(guild_list):
     content = json.dumps(
     guild_list,
     ensure_ascii=False,
@@ -90,7 +77,7 @@ def save_last_titles(titles, json_path):
     blob = bucket.blob(json_path)
     blob.upload_from_string(content, content_type="application/json")
 
-def get_enabled_channel_id_list():
+def get_enabled_channel_id_list(guild_list):
     enabled_channel_list = []
     for element in guild_list:
         if element["is_enabled"]:
@@ -102,10 +89,11 @@ async def on_ready():
     print(f"{bot.user}のログインに成功！")
     check_patch_title.start()
     check_dev_title.start()
-    load_guild_list()
+    await tree.sync()
 
 @bot.event
 async def on_guild_join(guild):
+    guild_list = load_guild_list()
     for item in guild_list:
         if "guild_id" in item and item["guild_id"] == guild.id:
             return
@@ -119,15 +107,17 @@ async def on_guild_join(guild):
     }
 
     guild_list.append(new_guild_info)
-    save_guild_list()
+    save_guild_list(guild_list)
 
 @bot.event
 async def on_guild_remove(guild):
-    guild_list = [item for item in guild_list if item.get('guild_id') != guild.id]
-    save_guild_list()
+    guild_list = load_guild_list()
+    new_guild_list = [item for item in guild_list if item.get('guild_id') != guild.id]
+    save_guild_list(new_guild_list)
 
-@bot.command()
-async def start(ctx):
+@tree.command(name='start', description='更新のお知らせを開始します。') 
+async def start_command(ctx): 
+    guild_list = load_guild_list()
     old_channel_name = None
     message = None
     result = False
@@ -144,21 +134,22 @@ async def start(ctx):
             element["channel_id"] = ctx.channel.id
             element["is_enabled"] = True
             result = True
-            save_guild_list()
+            save_guild_list(guild_list)
 
     if not result:
-        message = f"`!start`コマンドの実行に失敗しました。\nbotをサーバーから削除し、再度追加することで改善されるかもしれません。\n詳しくは開発者にお問い合わせください。"
+        message = f"`/start`コマンドの実行に失敗しました。\nbotをサーバーから削除し、再度追加することで改善されるかもしれません。\n詳しくは開発者にお問い合わせください。"
     elif channel_duplicate:
-        message = f"`!start`コマンドは以前にこのチャンネルで実行されています。\nお知らせを送信するチャンネルを変更するには別のチャンネルで`!start`コマンドを実行してください。"
+        message = f"`/start`コマンドは以前にこのチャンネルで実行されています。\nお知らせを送信するチャンネルを変更するには別のチャンネルで`/start`コマンドを実行してください。"
     elif old_channel_name is None:
-        message = f"`!start`コマンドが実行されました！\n次回から ***{ctx.channel.name}*** チャンネルで更新をお知らせします！\nお知らせを停止するには`!stop`コマンドを実行してください。"
+        message = f"`/start`コマンドが実行されました！\n次回から ***{ctx.channel.name}*** チャンネルで更新をお知らせします！\nお知らせを停止するには`/stop`コマンドを実行してください。"
     else:
-        message = f"`!start`コマンドが実行されました！\n更新をお知らせするチャンネルを ***{old_channel_name}*** チャンネルから ***{ctx.channel.name}*** チャンネルに変更します！"
+        message = f"`/start`コマンドが実行されました！\n更新をお知らせするチャンネルを ***{old_channel_name}*** チャンネルから ***{ctx.channel.name}*** チャンネルに変更します！"
     
-    await ctx.send(message)
+    await ctx.response.send_message(message)
 
-@bot.command()
-async def stop(ctx):
+@tree.command(name='stop', description='更新のお知らせを停止します。')
+async def stop_command(ctx):
+    guild_list = load_guild_list()
     old_channel_name = None
     message = None
     result = False
@@ -174,21 +165,20 @@ async def stop(ctx):
             element["channel_id"] = None
             element["is_enabled"] = False
             result = True
-            save_guild_list()
+            save_guild_list(guild_list)
 
     if not result:
-        message = f"`!stop`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
+        message = f"`/stop`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
     elif wrong_channel:
-        message = f"`!stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは ***{old_channel_name}*** チャンネルです。"
+        message = f"`/stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは ***{old_channel_name}*** チャンネルです。"
     else:
-        message = f"`!stop`コマンドが実行されました。\n更新お知らせを終了します。\nお知らせを再開するには任意のチャンネルで`!start`コマンドを実行してください。"
+        message = f"`/stop`コマンドが実行されました。\n更新お知らせを終了します。\nお知らせを再開するには任意のチャンネルで`/start`コマンドを実行してください。"
         
-    await ctx.send(message)
+    await ctx.response.send_message(message)
 
 @tasks.loop(minutes=15)
 async def check_patch_title():
-    if not is_defined(last_patch_title):
-        last_patch_title = load_last_titles(patch_title_json_path)
+    last_patch_title = load_last_titles(patch_title_json_path)
 
     print(f"{bot.user} - パッチタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
@@ -263,8 +253,7 @@ async def before_check_patch_title():
 
 @tasks.loop(minutes=15)
 async def check_dev_title():
-    if not is_defined(last_dev_titles):
-        last_dev_titles = load_last_titles(dev_title_json_path)
+    last_dev_titles = load_last_titles(dev_title_json_path)
     
     print(f"{bot.user} - Devタイトルチェック開始")
     url = "https://www.leagueoflegends.com/ja-jp/news/dev/"
@@ -308,10 +297,6 @@ async def check_dev_title():
 @check_dev_title.before_loop
 async def before_check_dev_title():
     await bot.wait_until_ready()
-
-# 変数が定義されているか
-def is_defined(variable_name):
-    return variable_name in globals() or variable_name in locals()
 
 try:
     bot.run(TOKEN)
