@@ -117,6 +117,7 @@ async def on_guild_remove(guild):
     save_guild_list(new_guild_list)
 
 @tree.command(name='start', description='更新のお知らせを開始します。') 
+@discord.app_commands.default_permissions(administrator=True)
 async def start_command(ctx): 
     guild_list = load_guild_list()
     old_channel_id = None
@@ -150,9 +151,10 @@ async def start_command(ctx):
     else:
         message = f"`/start`コマンドが実行されました！\n更新をお知らせするチャンネルを {old_channel_url} チャンネルから {current_channel_url} チャンネルに変更します！"
     
-    await ctx.response.send_message(message)
+    await ctx.response.send_message(message, ephemeral=True)
 
 @tree.command(name='stop', description='更新のお知らせを停止します。')
+@discord.app_commands.default_permissions(administrator=True)
 async def stop_command(ctx):
     guild_list = load_guild_list()
     current_channel_id = None
@@ -189,10 +191,11 @@ async def stop_command(ctx):
     else:
         message = f"`/stop`コマンドが実行されました。\n更新お知らせを終了します。\nお知らせを再開するには任意のチャンネルで`/start`コマンドを実行してください。"
         
-    await ctx.response.send_message(message)
+    await ctx.response.send_message(message, ephemeral=True)
 
 @tree.command(name='status', description='botの稼働状況を表示します。') 
-async def start_command(ctx): 
+@discord.app_commands.default_permissions(administrator=True)
+async def status_command(ctx): 
     guild_list = load_guild_list()
     message = None
     result = False
@@ -214,16 +217,55 @@ async def start_command(ctx):
     else:
         message = f"更新通知は現在無効になっています。\n有効にするには任意のチャンネルで`/start`コマンドを実行してください。"
     
-    await ctx.response.send_message(message)
+    await ctx.response.send_message(message, ephemeral=True)
+
+@tree.command(name='test', description='テストメッセージを送信します。') 
+@discord.app_commands.default_permissions(administrator=True)
+async def test_command(ctx): 
+    guild_list = load_guild_list()
+    message = None
+    result = False
+    is_enabled = None
+    for element in guild_list:
+        if element["guild_id"] == ctx.guild.id:
+            is_enabled = element["is_enabled"]
+            result = True
+
+    base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
+    called_channel_url = base_channel_url + str(ctx.channel.id)
+
+    if result and is_enabled:
+        patch_json = load_last_info_json(patch_info_json_path)
+        dev_json = load_last_info_json(dev_info_json_path)
+
+        patch_title = patch_json["title"]
+        patch_url = patch_json["url"]
+        patch_img = await get_patch_img(patch_url)
+        channel_list = [ctx.channel.id]
+        await send_patch_message(patch_title, patch_url, patch_img, channel_list)
+
+        new_dev_info_list = [dev_json[0]]
+        await send_dev_message(new_dev_info_list, channel_list)
+
+    if not result:
+        message = f"`/test`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
+    elif is_enabled:
+        message = f"{called_channel_url} チャンネルにテストメッセージを2件送信しました！"
+    else:
+        message = f"更新通知は現在無効になっています。\n`/test`コマンドを使用するには任意のチャンネルで`/start`コマンドを実行してください。"    
+    
+    await ctx.response.send_message(message, ephemeral=True)
 
 @tree.command(name='help', description='コマンドの一覧を表示します。') 
-async def start_command(ctx): 
+@discord.app_commands.default_permissions(administrator=True)
+async def help_command(ctx): 
     message = f"`/start`\nコマンドを使用したチャンネルで更新通知を有効にします。\nすでに他のチャンネルで更新通知を利用している場合、発信するチャンネルを変更します。\n\n"
     message += f"`/stop`\n更新通知を無効にします。\n更新通知が行われているチャンネルでのみ使用可能です。\n\n"
     message += f"`/status`\nbotの稼働状況と更新通知が行われるチャンネルを確認できます。\n\n"
+    message += f"`/test`\n更新通知を行っているチャンネルでテストメッセージを送信します。\n最新のパッチノート、開発者ブログそれぞれの更新通知メッセージを送信します。\n\n"
     message += f"`/help`\nコマンドの一覧を表示します。（現在あなたが読んでいるものです。）"
     
-    await ctx.response.send_message(message)
+    await ctx.response.send_message(message, ephemeral=True)
 
 @tasks.loop(minutes=15)
 async def check_patch_update():
@@ -235,11 +277,7 @@ async def check_patch_update():
 
     if patch_title != last_patch_title and patch_url != last_patch_url:
         patch_img = await get_patch_img(patch_url)
-        if patch_img is not None:
-            # 画像をメッセージに添付して送信
-            await send_patch_message(patch_title, patch_url, patch_img)
-        else:
-            await send_patch_message(patch_title, patch_url)
+        await send_patch_message(patch_title, patch_url, patch_img)
 
         new_patch_info_json = {
             "title": patch_title,
@@ -300,9 +338,10 @@ async def get_patch_img(patch_url):
 
         return image_data
 
-async def send_patch_message(patch_title, patch_url, patch_img=None):
-    guild_list = load_guild_list()
-    enabled_channel_list = get_enabled_channel_id_list(guild_list)
+async def send_patch_message(patch_title, patch_url, patch_img=None, enabled_channel_list=None):
+    if enabled_channel_list is None:
+        guild_list = load_guild_list()
+        enabled_channel_list = get_enabled_channel_id_list(guild_list)
     if patch_img is not None:
         for channel_id in enabled_channel_list:
             channel = bot.get_channel(channel_id)   
@@ -380,9 +419,10 @@ def check_dev_is_new(article, recent_dev_info):
             return False
     return True
 
-async def send_dev_message(new_dev_info_list):
-    guild_list = load_guild_list()
-    enabled_channel_list = get_enabled_channel_id_list(guild_list)
+async def send_dev_message(new_dev_info_list, enabled_channel_list=None):
+    if enabled_channel_list is None:
+        guild_list = load_guild_list()
+        enabled_channel_list = get_enabled_channel_id_list(guild_list)
     for new_dev_info in new_dev_info_list:
         for channel_id in enabled_channel_list:
             channel = bot.get_channel(channel_id)
