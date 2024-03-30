@@ -29,9 +29,9 @@ storage_client = storage.Client.from_service_account_json("sacred-epigram-411001
 bucket_name = 'loljp-discord-bot'
 bucket = storage_client.get_bucket(bucket_name)
 
-is_deploy_ready = 'deploy ready'
+is_product = True
 json_directory = 'develop'
-if is_deploy_ready == 'deploy ready':
+if is_product:
     json_directory = 'product'
 patch_info_json_path = json_directory + '/last_patch_info.json'
 dev_info_json_path = json_directory + '/recent_dev_info.json'
@@ -65,7 +65,7 @@ def save_guild_list(guild_list):
     blob.upload_from_string(content, content_type="application/json")
 
 # GCS上のjsonファイルに直近の更新内容を保存する
-def save_last_titles(titles, json_path):
+def save_last_info(titles, json_path):
     content = json.dumps(
     titles,
     ensure_ascii=False,
@@ -242,16 +242,22 @@ async def test_command(ctx):
         patch_url = patch_json["url"]
         patch_img = await get_patch_img(patch_url)
         channel_list = [ctx.channel.id]
-        await send_patch_message(patch_title, patch_url, patch_img, channel_list)
-
         new_dev_info_list = [dev_json[0]]
-        await send_dev_message(new_dev_info_list, channel_list)
+        is_error_occured = False
 
+        if not await send_patch_message(patch_title, patch_url, patch_img, channel_list, True):
+            is_error_occured = True
+        if not await send_dev_message(new_dev_info_list, channel_list, True):
+            is_error_occured = True
+        if is_error_occured:
+            await ctx.followup.send(f"テストの実行に失敗しました。\nチャンネルの発言権限等を確認してください。\n")
+            return
+        
+        message = f"{called_channel_url} チャンネルにテストメッセージを2件送信しました！"
+        
     if not result:
         message = f"`/test`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
-    elif is_enabled:
-        message = f"{called_channel_url} チャンネルにテストメッセージを2件送信しました！"
-    else:
+    elif not is_enabled:
         message = f"更新通知は現在無効になっています。\n`/test`コマンドを使用するには任意のチャンネルで`/start`コマンドを実行してください。"    
     
     await ctx.followup.send(message)
@@ -285,7 +291,7 @@ async def check_patch_update():
             "modified": datetime.now(jst).strftime("%Y-%m-%d %H:%M:%S")
         }
         # 新しいパッチ情報をファイルに保存
-        save_last_titles(new_patch_info_json, patch_info_json_path)
+        save_last_info(new_patch_info_json, patch_info_json_path)
 
 async def scrape_patch_link_list():
     print(f"{bot.user} - パッチタイトルチェック開始")
@@ -338,23 +344,31 @@ async def get_patch_img(patch_url):
 
         return image_data
 
-async def send_patch_message(patch_title, patch_url, patch_img=None, enabled_channel_list=None):
+async def send_patch_message(patch_title, patch_url, patch_img=None, enabled_channel_list=None, is_test=False):
     if enabled_channel_list is None:
         guild_list = load_guild_list()
         enabled_channel_list = get_enabled_channel_id_list(guild_list)
     if patch_img is not None:
         for channel_id in enabled_channel_list:
             channel = bot.get_channel(channel_id)   
-            image_file = discord.File(
-                io.BytesIO(patch_img), filename="patch_hilight_image.png"
-            )
-            await channel.send(
-                f"### - [{patch_title}](<{patch_url}>)", file=image_file
-            )
+            image_file = discord.File(io.BytesIO(patch_img), filename="patch_hilight_image.png")
+            try:
+                await channel.send(f"### - [{patch_title}](<{patch_url}>)", file=image_file)
+                if is_test:
+                    return True
+            except:
+                if is_test:
+                    return False
     else:
         for channel_id in enabled_channel_list:
             channel = bot.get_channel(channel_id)
-            await channel.send(f"### - [{patch_title}](<{patch_url}>)")
+            try:
+                await channel.send(f"### - [{patch_title}](<{patch_url}>)")
+                if is_test:
+                    return True
+            except:
+                if is_test:
+                    return False
         
 @check_patch_update.before_loop
 async def before_check_patch_update():
@@ -381,7 +395,7 @@ async def check_dev_update():
         if len(recent_dev_info) > 20:
             recent_dev_info = recent_dev_info[:20]
 
-        save_last_titles(recent_dev_info, dev_info_json_path)
+        save_last_info(recent_dev_info, dev_info_json_path)
 
 async def scrape_dev_link_list():
     print(f"{bot.user} - Devタイトルチェック開始")
@@ -418,14 +432,20 @@ def check_dev_is_new(article_url, recent_dev_info):
             return False
     return True
 
-async def send_dev_message(new_dev_info_list, enabled_channel_list=None):
+async def send_dev_message(new_dev_info_list, enabled_channel_list=None, is_test=False):
     if enabled_channel_list is None:
         guild_list = load_guild_list()
         enabled_channel_list = get_enabled_channel_id_list(guild_list)
     for new_dev_info in new_dev_info_list:
         for channel_id in enabled_channel_list:
             channel = bot.get_channel(channel_id)
-            await channel.send(f"### - [{new_dev_info['title']}]({new_dev_info['url']})")
+            try:
+                await channel.send(f"### - [{new_dev_info['title']}]({new_dev_info['url']})")
+                if is_test:
+                    return True
+            except:
+                if is_test:
+                    return False
                 
 @check_dev_update.before_loop
 async def before_check_dev_update():
