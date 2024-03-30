@@ -22,21 +22,20 @@ intents.message_content = True
 
 keep_alive()
 TOKEN = os.environ["DISCORD_BOT_TOKEN"]
-storage_client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
 bot = Client(intents=intents)
 tree = CommandTree(bot)
 
+storage_client = storage.Client.from_service_account_json("sacred-epigram-411001-8bba796e9384.json")
 bucket_name = 'loljp-discord-bot'
 bucket = storage_client.get_bucket(bucket_name)
-patch_info_json_path = 'product/last_patch_info.json'
-dev_info_json_path = 'product/recent_dev_info.json'
-guild_list_json_path = 'product/guild_list.json'
 
-is_develop = False
-if is_develop:
-    patch_info_json_path = 'develop/last_patch_info.json'
-    dev_info_json_path = 'develop/recent_dev_info.json'
-    guild_list_json_path = 'develop/guild_list.json'
+is_deploy_ready = 'deploy ready'
+json_directory = 'develop'
+if is_deploy_ready == 'deploy ready':
+    json_directory = 'product'
+patch_info_json_path = json_directory + '/last_patch_info.json'
+dev_info_json_path = json_directory + '/recent_dev_info.json'
+guild_list_json_path = json_directory + '/guild_list.json'
 
 # GCS上のjsonファイルからサーバーリストを取得する
 def load_guild_list():
@@ -222,6 +221,7 @@ async def status_command(ctx):
 @tree.command(name='test', description='テストメッセージを送信します。') 
 @discord.app_commands.default_permissions(administrator=True)
 async def test_command(ctx): 
+    await ctx.response.defer(ephemeral=True)
     guild_list = load_guild_list()
     message = None
     result = False
@@ -254,7 +254,7 @@ async def test_command(ctx):
     else:
         message = f"更新通知は現在無効になっています。\n`/test`コマンドを使用するには任意のチャンネルで`/start`コマンドを実行してください。"    
     
-    await ctx.response.send_message(message, ephemeral=True)
+    await ctx.followup.send(message)
 
 @tree.command(name='help', description='コマンドの一覧を表示します。') 
 @discord.app_commands.default_permissions(administrator=True)
@@ -367,7 +367,7 @@ async def check_dev_update():
     new_dev_info_list = []
     articles = await scrape_dev_link_list()
     for article in articles:
-        if check_dev_is_new(article, recent_dev_info):
+        if check_dev_is_new(article["url"], recent_dev_info):
             new_dev_info = {
                 "title": article["title"],
                 "url": article["url"],
@@ -376,8 +376,7 @@ async def check_dev_update():
             new_dev_info_list.append(new_dev_info)
     if len(new_dev_info_list) > 0:
         await send_dev_message(new_dev_info_list)
-                
-        # recent_dev_infoの末尾にtitleを追加
+
         recent_dev_info = new_dev_info_list + recent_dev_info
         if len(recent_dev_info) > 20:
             recent_dev_info = recent_dev_info[:20]
@@ -413,9 +412,9 @@ async def scrape_dev_link_list():
 
     return articles
 
-def check_dev_is_new(article, recent_dev_info):
+def check_dev_is_new(article_url, recent_dev_info):
     for dev_info in recent_dev_info:
-        if article["url"] == dev_info["url"]:
+        if article_url == dev_info["url"]:
             return False
     return True
 
