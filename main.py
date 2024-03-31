@@ -94,18 +94,23 @@ async def on_ready():
 @bot.event
 async def on_guild_join(guild):
     guild_list = load_guild_list()
+    if not check_is_guild_exist(guild_list, guild.id):
+        append_new_guild(guild.id, guild.name, guild_list)
+
+def check_is_guild_exist(guild_list, guild_id):
     for item in guild_list:
-        if "guild_id" in item and item["guild_id"] == guild.id:
-            return
+        if item["guild_id"] == guild_id:
+            return True
+    return False
 
+def append_new_guild(guild_id, guild_name, guild_list, channel_name=None, channel_id=None, is_enabled=False):
     new_guild_info = {
-        "guild_name": guild.name,
-        "guild_id": guild.id,
-        "channel_name": None,
-        "channel_id": None,
-        "is_enabled": False
+        "guild_name": guild_name,
+        "guild_id": guild_id,
+        "channel_name": channel_name,
+        "channel_id": channel_id,
+        "is_enabled": is_enabled
     }
-
     guild_list.append(new_guild_info)
     save_guild_list(guild_list)
 
@@ -136,14 +141,14 @@ async def start_command(ctx):
             element["is_enabled"] = True
             result = True
             save_guild_list(guild_list)
+    if not result:
+        append_new_guild(ctx.guild.id, ctx.guild.name, guild_list, ctx.channel.name, ctx.channel.id, True)
 
     base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
     current_channel_url = base_channel_url + str(ctx.channel.id)
     old_channel_url = base_channel_url + str(old_channel_id)
 
-    if not result:
-        message = f"`/start`コマンドの実行に失敗しました。\nbotをサーバーから削除し、再度追加することで改善されるかもしれません。\n詳しくは開発者にお問い合わせください。"
-    elif channel_duplicate:
+    if channel_duplicate:
         message = f"`/start`コマンドは以前にこのチャンネルで実行されています。\nお知らせを送信するチャンネルを変更するには別のチャンネルで`/start`コマンドを実行してください。"
     elif old_channel_id is None:
         message = f"`/start`コマンドが実行されました！\n次回から {current_channel_url} チャンネルで更新をお知らせします！\nお知らせを停止するには`/stop`コマンドを実行してください。"
@@ -177,13 +182,14 @@ async def stop_command(ctx):
             element["is_enabled"] = False
             result = True
             save_guild_list(guild_list)
+    if not result:
+        append_new_guild(ctx.guild.id, ctx.guild.name, guild_list)
+        already_stop = True
 
     base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
     current_channel_url = base_channel_url + str(current_channel_id)
 
-    if not result:
-        message = f"`/stop`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
-    elif already_stop:
+    if already_stop:
         message = f"更新通知は現在有効ではありません。\n`/stop`コマンドは実行されませんでした。"
     elif wrong_channel:
         message = f"`/stop`コマンドは更新お知らせを行っているチャンネルで実行してください。\n現在更新をお知らせしているチャンネルは {current_channel_url} チャンネルです。"
@@ -205,13 +211,13 @@ async def status_command(ctx):
             current_channel_id = element["channel_id"]
             is_enabled = element["is_enabled"]
             result = True
+    if not result:
+        append_new_guild(ctx.guild.id, ctx.guild.name, guild_list)
 
     base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
     current_channel_url = base_channel_url + str(current_channel_id)
 
-    if not result:
-        message = f"`/status`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
-    elif is_enabled:
+    if is_enabled:
         message = f"更新通知は現在有効になっています。\nお知らせを送信するチャンネルは {current_channel_url} チャンネルです。"
     else:
         message = f"更新通知は現在無効になっています。\n有効にするには任意のチャンネルで`/start`コマンドを実行してください。"
@@ -230,6 +236,8 @@ async def test_command(ctx):
         if element["guild_id"] == ctx.guild.id:
             is_enabled = element["is_enabled"]
             result = True
+    if not result:
+        append_new_guild(ctx.guild.id, ctx.guild.name, guild_list)
 
     base_channel_url = 'https://discord.com/channels/' + str(ctx.guild.id) + '/'
     called_channel_url = base_channel_url + str(ctx.channel.id)
@@ -255,9 +263,7 @@ async def test_command(ctx):
         
         message = f"{called_channel_url} チャンネルにテストメッセージを2件送信しました！"
         
-    if not result:
-        message = f"`/test`コマンドの実行に失敗しました。\n開発者にお問い合わせください。"
-    elif not is_enabled:
+    if (not is_enabled == True) or not result:
         message = f"更新通知は現在無効になっています。\n`/test`コマンドを使用するには任意のチャンネルで`/start`コマンドを実行してください。"    
     
     await ctx.followup.send(message)
