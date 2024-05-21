@@ -5,17 +5,25 @@
 * 機能別
   * LoL PatchNote
   * TFT PatchNote
-  * Articles
+  * Articles(各要素は常にページごとに重複チェックする)
     * dev
     * lol eSports video
-    * https://www.leagueoflegends.com/ja-jp/news/game-updates/
+    * https://www.leagueoflegends.com/ja-jp/news/game-updates/ (パッチノートを除く)
     * https://www.leagueoflegends.com/ja-jp/news/media/
     * https://www.leagueoflegends.com/ja-jp/news/lore/
     * https://www.leagueoflegends.com/ja-jp/news/community/
     * https://www.leagueoflegends.com/ja-jp/news/riot-games/
-  * LoLEsports news (公式のeSportsNewsとのダブりチェックはしない)
+  * TFT-eSports
+    * https://teamfighttactics.leagueoflegends.com/ja-jp/news/ （Articles TFTPatchと重複チェック）
+  * LoL-eSports
+    * LoLeSports news
+    * https://www.leagueoflegends.com/ja-jp/news/esports/
   * TaskLoopを機能ごとではなくひとまとめで行う（1タスクで順番に行うことでurlのダブりを防ぐ狙い）
     * TaskLoopは一個だけ、その一個で各機能を回す
+  * ルーティング少し探すか
+    * /news/tags/teamfight-tactics-new-content/ 
+    * /news/tags/champion-spotlight
+    * /news/tags/teamfight-tactics-esports/
 
 ### 実装予定
 * パッチノートの更新検知
@@ -32,6 +40,14 @@
 * Statusコマンドでチャンネルの権限をチェック
 * Startコマンド実行時にチャンネルの権限を確認して自分がメッセージ送信できない場合はアラートを出し、チャンネルID登録を行わない
   * テキストチャンネルの権限を変更し自らの発言を許可する  
+
+### 個人的メモ
+#### PatchBotが完成したら
+* PatchBotカテゴリを作る
+* 機能ごとに送信するチャンネルを分ける
+* PatchBotControllerチャンネルを作成する
+  * ロール管理パネルを設置し、各機能を閲覧するかどうかを個々人が選択できるようにする
+  * 各種ロールはBotからのみコントロールするため、管理者権限より上位に配置する
 
 ### 実装済み
 * _辞書型でデータ作って更新履歴管理_
