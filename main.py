@@ -350,17 +350,15 @@ async def scrape_patch_link_list():
             html = await response.text()
 
     soup = BeautifulSoup(html, "html.parser")
-    target_a_tags = soup.find_all('a', attrs={'data-testid': 'articlefeaturedcard-component'})
+    first_target_a_tag = soup.find_all('a', attrs={'data-testid': 'articlefeaturedcard-component'})[0]
 
-    if target_a_tags:
-        first_target_a_tag = target_a_tags[0]
-        title_text_element = first_target_a_tag.find("div", attrs={'data-testid': 'card-title'})
+    title_text_element = first_target_a_tag.find("div", attrs={'data-testid': 'card-title'})
 
-        patch_title = title_text_element.text
-        href = first_target_a_tag.get("href")
-        patch_url = urljoin(url, href)
+    patch_title = title_text_element.text
+    href = first_target_a_tag.get("href")
+    patch_url = urljoin(url, href)
 
-        return patch_title, patch_url
+    return patch_title, patch_url
 
 
 async def get_patch_img(patch_url):
@@ -467,7 +465,6 @@ async def scrape_dev_link_list():
         href = target_a_tag.get("href")
         dev_url = urljoin(url, href)
 
-        # <h2>要素を取得
         title_text_element = target_a_tag.find("div", attrs={'data-testid': 'card-title'})
 
         article = {"title": title_text_element.text, "url": dev_url}
