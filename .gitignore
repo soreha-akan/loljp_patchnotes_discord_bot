@@ -3,3 +3,6 @@ __pycache__
 実装予定.md
 作業手順.md
 要件メモ.md
+.env
+venv
+.vscode
