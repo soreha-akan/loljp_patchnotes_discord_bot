@@ -1,6 +1,7 @@
 from discord.ext import commands, tasks
 from Service.CheckUpdateService import CheckUpdateService
 
+
 class TaskScheduler(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot

@@ -9,8 +9,8 @@ class InteractionService:
             ArticleType.TFT_NEWS: "TFTニュース"
         }
 
-    async def send_ephemeral_message(self, interaction, message):
-        await interaction.response.send_message(message, ephemeral=True)
+    async def send_followup_in_ephemeral(self, interaction, message):
+        await interaction.followup.send(message, ephemeral=True)
 
     async def response_help(self, interaction):
         message = (
@@ -23,39 +23,55 @@ class InteractionService:
         )
         await interaction.response.send_message(message, ephemeral=True)
 
-    async def response_start(self, interaction, register_result):
-        message = self.generate_register_message(register_result, interaction.guild_id, CommandName.START)
-        await interaction.response.send_message(message, ephemeral=True)
+    async def response_start(self, interaction, register_result):        
+        if register_result:
+            message = self.generate_current_setting_message(register_result, interaction.guild_id, CommandName.START)
+        else:
+            message = "更新通知が有効になっていません。"
+        await interaction.followup.send(message, ephemeral=True)
 
     async def response_stop(self, interaction, unregister_result):
-        message = self.generate_register_message(unregister_result, interaction.guild_id, CommandName.STOP)
-        await interaction.response.send_message(message, ephemeral=True)
+        if not unregister_result:
+            message = "このチャンネルでは更新通知が有効になっていません。"
+        else:
+            message = self.generate_current_setting_message(unregister_result, interaction.guild_id, CommandName.STOP)
+        await interaction.followup.send(message, ephemeral=True)
 
     async def response_status(self, interaction, current_status):
-        message = self.generate_register_message(current_status, interaction.guild_id, CommandName.STATUS)
-        await interaction.response.send_message(message, ephemeral=True)
+        message = self.generate_current_setting_message(current_status, interaction.guild_id, CommandName.STATUS)
+        await interaction.followup.send(message, ephemeral=True)
 
-    def generate_register_message(self, register_result, guild_id, command_name):
-        """登録結果に基づいてメッセージを生成"""
+    async def response_test(self, interaction, is_complete, count=0):
+        if is_complete:
+            if count:
+                message = "更新通知が有効になっている記事から最新のものを設定されたチャンネルにお送りしました。"
+            else:
+                message = "更新通知が有効になっていません。"
+        else:
+            message = "メッセージの送信に失敗しました。 チャンネルの権限で本BOTの発言が許可されているか確認してください。"
+        await interaction.followup.send(message, ephemeral=True)
+
+    def generate_current_setting_message(self, current_setting, guild_id, command_name):
         messages = []
         
         messages.append(f"`{command_name}`コマンドが実行されました！")
 
         base_channel_url = "https://discord.com/channels/" + str(guild_id) + "/"
 
-        for article_type in register_result:
-            article_type_name = ARTICLE_TYPE_NAMES[article_type.article_type]
-            if article_type.is_active:
-                current_channel_url = base_channel_url + str(article_type.channel.id)
-                if article_type.is_channel_change:
-                    old_channel_url = base_channel_url + str(article_type.old_channel_id)
-                    messages.append(f"{article_type_name} の更新通知 {old_channel_url} => {current_channel_url}")
+        for type_key, status_info in current_setting.items():
+            article_type_name = ARTICLE_TYPE_NAMES[type_key.value]
+            
+            if status_info["is_active"]:
+                current_channel_url = base_channel_url + str(status_info["channel_id"])
+                if status_info["channel_id"] != status_info["channel_id_before"] and status_info["is_active_before"]:
+                    old_channel_url = base_channel_url + str(status_info["channel_id_before"])
+                    messages.append(f"{article_type_name}の更新通知  -  {old_channel_url} => {current_channel_url}")
                 else:
-                    messages.append(f"{article_type_name} の更新通知 {current_channel_url}")
+                    messages.append(f"{article_type_name}の更新通知  -  {current_channel_url}")
             else:
-                if article_type.is_stopped:
-                    messages.append(f"{article_type_name} の更新通知を停止")
+                if status_info["is_active_before"]:
+                    messages.append(f"{article_type_name}の更新通知  -  **停止しました**")
                 else:
-                    messages.append(f"{article_type_name} の更新通知 **未設定**")
+                    messages.append(f"{article_type_name}の更新通知  -  **未設定**")
         
         return "\n".join(messages)

@@ -1,20 +1,22 @@
 import asyncio
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 from DAO.GuildDAO import GuildDAO
 from DAO.ArticleDAO import ArticleDAO
-from DAO.GuildChannelDAO import GuildChannelDAO
+from Models.Article import Article
+from DAO.NotificationSettingDAO import NotificationSettingDAO
 from bs4 import BeautifulSoup
 from Service.SendMessageService import SendMessageService
 from config.constants import ArticleType, RiotURL
 import aiohttp
 
 class CheckUpdateService:
+    
     def __init__(self, bot):
         self.bot = bot
         self.guild_dao = GuildDAO()
         self.article_dao = ArticleDAO()
-        self.send_messsage_service = SendMessageService(bot)
-        self.guild_channel_dao = GuildChannelDAO()
+        self.send_message_service = SendMessageService(bot)
+        self.notification_setting_dao = NotificationSettingDAO()
 
     async def check_updates(self):
         # 各URLのページを非同期に取得
@@ -25,7 +27,8 @@ class CheckUpdateService:
         # 各ページの更新チェック
         await self.check_LoL_patch_update(page_data[RiotURL.LOL_PATCH])
         await self.check_TFT_patch_update(page_data[RiotURL.TFT_NEWS])
-        await self.check_LoL_news_update(page_data[RiotURL.LOL_NEWS])
+        await self.check_news_update(page_data[RiotURL.TFT_NEWS], ArticleType.TFT_NEWS)
+        await self.check_news_update(page_data[RiotURL.LOL_NEWS], ArticleType.LOL_NEWS)
 
     async def fetch_pages(self, urls):
         """ 複数のURLからページを非同期に取得 """
@@ -51,32 +54,41 @@ class CheckUpdateService:
         latest_patch = self.article_dao.fetch_latest_article(article_type)
         patch_title, patch_url = await self.fetch_patch_link_and_title(soup, article_type)
         if patch_title and patch_url:
-            if latest_patch and patch_url != latest_patch.url and not self.article_dao.exists_by_url(patch_url):
-                patch_img = await self.get_patch_img(patch_url)
-                await self.handle_new_article(patch_title, patch_url, article_type, patch_img)
-                self.article_dao.insert_article(patch_title, patch_url, article_type)
-
-    async def check_LoL_news_update(self, soup):
-        await self.check_news_update(soup, ArticleType.LOL_NEWS)
-
-    async def check_TFT_news_update(self, soup):
-        await self.check_news_update(soup, ArticleType.TFT_NEWS)
+            normalized_url = self.normalize_url(patch_url)
+            if not self.article_dao.exists_by_url(normalized_url) and (not latest_patch or normalized_url != latest_patch.url):
+                patch_img = await self.get_patch_img(normalized_url)
+                await self.handle_new_article(patch_title, normalized_url, article_type, patch_img)
+                new_article = Article(
+                    title=patch_title,
+                    article_type=article_type,
+                    url=normalized_url,
+                )
+                self.article_dao.insert(new_article)
 
     async def check_news_update(self, soup, article_type):
         """ ニュース記事更新チェックの共通メソッド """
         news_list = await self.fetch_news_link_list(soup, article_type)
         for news in news_list:
+            if article_type == ArticleType.LOL_NEWS:
+                print(news)
             url = news["url"]
             title = news["title"]
-            if not self.article_dao.exists_by_url(url):
-                await self.handle_new_article(title, url, article_type)
-                self.article_dao.insert_article(title, url, article_type)
+            normalized_url = self.normalize_url(url)
+            if not self.article_dao.exists_by_url(normalized_url):
+                await self.handle_new_article(title, normalized_url, article_type)
+                new_article = Article(
+                    title=title,
+                    article_type=article_type,
+                    url=normalized_url,
+                )
+                self.article_dao.insert(new_article)
 
     async def handle_new_article(self, article_title, article_url, article_type, patch_img=None):
-        channels = self.guild_channel_dao.get_active_channels(article_type)
-        channel_id_list = [channel.discord_channel_id for channel in channels]
+        channels = self.notification_setting_dao.get_active_channels(article_type)
+        channel_id_list = [channel.channel_id for channel in channels]
         for channel_id in channel_id_list:
-            await self.send_messsage_service.send_new_article_message(article_title, article_url, article_type, channel_id, patch_img)
+            print(channel_id)
+            await self.send_message_service.send_new_article_message(article_title, article_url, article_type, channel_id, patch_img)
 
     async def fetch_patch_link_and_title(self, soup, article_type):
         """ パッチノートのタイトルとURLを取得 """
@@ -105,7 +117,7 @@ class CheckUpdateService:
             if title_text_element and "パッチノート" in title_text_element.text:
                 patch_title = title_text_element.text
                 href = target_a_tag.get("href")
-                patch_url = urljoin(RiotURL.LOL_PATCH, href)
+                patch_url = urljoin(RiotURL.TFT_NEWS, href)
                 break
         return patch_title, patch_url
 
@@ -151,27 +163,43 @@ class CheckUpdateService:
         return None
 
     async def send_test_message(self, guild_id):
-        article_type = {
-            ArticleType.LOL_PATCH: {"article_type":ArticleType.LOL_PATCH, "is_active": False, "channel_id": None},
-            ArticleType.TFT_PATCH: {"article_type":ArticleType.TFT_PATCH, "is_active": False, "channel_id": None},
-            ArticleType.LOL_NEWS: {"article_type":ArticleType.LOL_NEWS, "is_active": False, "channel_id": None},
-            ArticleType.TFT_NEWS: {"article_type":ArticleType.TFT_NEWS, "is_active": False, "channel_id": None},
-        }
+        channels = self.notification_setting_dao.get_active_setting(guild_id)
 
-        channels = self.guild_channel_dao.get_by_guild_id(guild_id)
         for channel in channels:
-            if channel.is_active is True:
-                article_type[ArticleType(channel.article_type)]["is_active"] = True
-                article_type[ArticleType(channel.article_type)]["channel_id"] = channel.discord_channel_id
+            latest_article = self.article_dao.fetch_latest_article(channel.article_type)
 
-        for article in article_type:
-            if article_type[article]["is_active"]:
-                latest_article = self.article_dao.fetch_latest_article(article_type[article]["article_type"])
+            if latest_article:
+                patch_img = None
+                if latest_article.article_type in (ArticleType.LOL_PATCH, ArticleType.TFT_PATCH):
+                    patch_img = await self.get_patch_img(latest_article.url)
+                
+                await self.send_message_service.send_new_article_message(latest_article.title, latest_article.url, latest_article.article_type, channel.channel_id, patch_img)
 
-                if latest_article:
-                    patch_img = None
-                    if latest_article.article_type in (ArticleType.LOL_PATCH, ArticleType.TFT_PATCH):
-                        patch_img = await self.get_patch_img(latest_article.url)
-                    
-                    await self.send_messsage_service.send_new_article_message(latest_article.title, latest_article.url, latest_article.article_type, article_type[article]["channel_id"], patch_img)
+        return len(channels)
                         
+    def normalize_url(self, url: str) -> str:
+        """URLを正規化する関数
+
+        次の処理を行います：
+        1. 前後の空白を削除
+        2. パスの末尾のスラッシュを削除
+        """
+        # URLが空または None の場合はそのまま返す
+        if not url:
+            return url
+
+        # URLをパース
+        parsed = urlparse(url.strip())
+
+        # パスの末尾のスラッシュを削除
+        path = parsed.path
+        # パスが空文字列の場合はスラッシュ削除しない（ルートパス '/' もそのまま維持）
+        if path and path != '/' and path.endswith('/'):
+             path = path[:-1]
+
+        # 正規化されたコンポーネントでURLを再構築
+        normalized_parts = list(parsed)
+        normalized_parts[2] = path
+
+        # URLを再構築して返す
+        return urlunparse(tuple(normalized_parts))

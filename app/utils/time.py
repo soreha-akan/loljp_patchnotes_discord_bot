@@ -4,4 +4,4 @@ import pytz
 jst = pytz.timezone("Asia/Tokyo")
 
 def jst_now():
-    return datetime.now(pytz.timezone("Asia/Tokyo"))
+    return datetime.now(pytz.timezone("Asia/Tokyo")).strftime("%Y-%m-%d %H:%M:%S")

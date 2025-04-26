@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 class ArticleType(IntEnum):
     LOL_PATCH = 1
     TFT_PATCH = 2
@@ -22,8 +23,8 @@ class CommandName():
 
 class RiotURL():
     LOL_PATCH = "https://www.leagueoflegends.com/ja-jp/news/tags/patch-notes/"
-    TFT_NEWS = "https://teamfighttactics.leagueoflegends.com/ja-jp/news/"
     LOL_NEWS = "https://www.leagueoflegends.com/ja-jp/news/"
+    TFT_NEWS = "https://teamfighttactics.leagueoflegends.com/ja-jp/news/"
 
 class ChannelStatus(str):
     MOVED = "moved"
