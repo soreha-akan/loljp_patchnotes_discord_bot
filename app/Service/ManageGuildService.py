@@ -81,9 +81,9 @@ class ManageGuildService:
         return result
     
     def unregister_channel(self, interaction):
-        is_empty = not self.notification_setting_dao.check_exist_active_setting(interaction.guild_id)
-        if is_empty:
-            return is_empty
+        is_exist = self.notification_setting_dao.check_exist_active_setting(interaction.guild_id)
+        if not is_exist:
+            return is_exist
         settings = self.notification_setting_dao.get_by_guild_id(interaction.guild_id)
         disabled_channel_id = interaction.channel.id
 

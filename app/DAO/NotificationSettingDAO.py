@@ -20,7 +20,8 @@ class NotificationSettingDAO(BaseDAO):
     def check_exist_active_setting(self, guild_id) -> bool:
         return self.query(NotificationSetting).filter(
             NotificationSetting.is_active == True,
-            NotificationSetting.guild_id == guild_id
+            NotificationSetting.guild_id == guild_id,
+            NotificationSetting.deleted == False
         ).first() is not None
     
     def get_by_guild_id(self, guild_id):
