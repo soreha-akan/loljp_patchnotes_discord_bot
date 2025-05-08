@@ -7,6 +7,7 @@ from DAO.NotificationSettingDAO import NotificationSettingDAO
 from bs4 import BeautifulSoup
 from Service.SendMessageService import SendMessageService
 from config.constants import ArticleType, RiotURL
+from collections import defaultdict
 import aiohttp
 
 class CheckUpdateService:
@@ -29,6 +30,11 @@ class CheckUpdateService:
         await self.check_TFT_patch_update(page_data[RiotURL.TFT_NEWS])
         await self.check_news_update(page_data[RiotURL.TFT_NEWS], ArticleType.TFT_NEWS)
         await self.check_news_update(page_data[RiotURL.LOL_NEWS], ArticleType.LOL_NEWS)
+
+        new_articles = self.article_dao.get_unposted_articles()
+        if new_articles:
+            await self.handle_new_article(new_articles)
+            self.article_dao.mark_articles_as_posted(new_articles)
 
     async def fetch_pages(self, urls):
         """ 複数のURLからページを非同期に取得 """
@@ -56,8 +62,6 @@ class CheckUpdateService:
         if patch_title and patch_url:
             normalized_url = self.normalize_url(patch_url)
             if not self.article_dao.exists_by_url(normalized_url) and (not latest_patch or normalized_url != latest_patch.url):
-                patch_img = await self.get_patch_img(normalized_url)
-                await self.handle_new_article(patch_title, normalized_url, article_type, patch_img)
                 new_article = Article(
                     title=patch_title,
                     article_type=article_type,
@@ -75,7 +79,6 @@ class CheckUpdateService:
             title = news["title"]
             normalized_url = self.normalize_url(url)
             if not self.article_dao.exists_by_url(normalized_url):
-                await self.handle_new_article(title, normalized_url, article_type)
                 new_article = Article(
                     title=title,
                     article_type=article_type,
@@ -83,12 +86,19 @@ class CheckUpdateService:
                 )
                 self.article_dao.insert(new_article)
 
-    async def handle_new_article(self, article_title, article_url, article_type, patch_img=None):
-        channels = self.notification_setting_dao.get_active_channels(article_type)
-        channel_id_list = [channel.channel_id for channel in channels]
-        for channel_id in channel_id_list:
-            print(channel_id)
-            await self.send_message_service.send_new_article_message(article_title, article_url, article_type, channel_id, patch_img)
+    async def handle_new_article(self, new_articles):
+        settings = self.notification_setting_dao.get_active_settings()
+        channel_id_list_by_type = defaultdict(list)
+        for setting in settings:
+            channel_id_list_by_type[setting.article_type].append(setting.channel_id)
+        
+        for article in new_articles:
+            patch_img = None
+            if article.article_type in (ArticleType.LOL_PATCH, ArticleType.TFT_PATCH):
+                patch_img = await self.get_patch_img(article.url)
+                
+            for channel_id in channel_id_list_by_type.get(article.article_type, []):
+                await self.send_message_service.send_new_article_message(article.title, article.url, article.article_type, channel_id, patch_img)
 
     async def fetch_patch_link_and_title(self, soup, article_type):
         """ パッチノートのタイトルとURLを取得 """
@@ -163,7 +173,7 @@ class CheckUpdateService:
         return None
 
     async def send_test_message(self, guild_id):
-        channels = self.notification_setting_dao.get_active_setting(guild_id)
+        channels = self.notification_setting_dao.get_active_setting_by_guild_id(guild_id)
 
         for channel in channels:
             latest_article = self.article_dao.fetch_latest_article(channel.article_type)

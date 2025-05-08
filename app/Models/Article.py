@@ -13,3 +13,4 @@ class Article(Base):
     modified_at = Column(TIMESTAMP, default=jst_now, onupdate=jst_now)
     deleted = Column(Boolean, nullable=False, default=False)
     deleted_at = Column(TIMESTAMP, nullable=True)
+    is_posted = Column(Boolean, nullable=False, default=False)

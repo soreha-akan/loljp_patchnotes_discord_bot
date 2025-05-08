@@ -7,11 +7,13 @@ CREATE TABLE articles (
 	modified_at timestamp DEFAULT CURRENT_TIMESTAMP NULL,
 	deleted bool DEFAULT false NOT NULL,
 	deleted_at timestamp NULL,
+	is_posted bool DEFAULT false NOT NULL,
 	CONSTRAINT articles_article_type_check CHECK (((article_type >= 1) AND (article_type <= 8))),
 	CONSTRAINT articles_pkey PRIMARY KEY (id)
 );
 CREATE INDEX articles_article_type_idx ON articles USING btree (article_type, url);
 CREATE INDEX idx_articles_01 ON articles USING btree (url);
+CREATE INDEX idx_articles_02 ON public.articles USING btree (is_posted);
 
 -- Column comments
 

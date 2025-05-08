@@ -3,13 +3,17 @@ from utils.time import jst_now
 from DAO.BaseDAO import BaseDAO
 
 class NotificationSettingDAO(BaseDAO):
-    def get_active_channels(self, article_type):
-        return self.query(NotificationSetting).join(Guild).filter(
+    def get_active_settings(self, article_type = None):
+        query = self.query(NotificationSetting).join(Guild).filter(
             Guild.deleted == False,
             NotificationSetting.deleted == False,
-            NotificationSetting.is_active == True,
-            NotificationSetting.article_type == article_type
-        ).all()
+            NotificationSetting.is_active == True
+        )
+
+        if article_type is not None:
+            query = query.filter(NotificationSetting.article_type == article_type)
+
+        return query.all()
     
     def update_channel_by_id(self, id, values: dict):
         self.update(NotificationSetting, [NotificationSetting.id == id], values)
@@ -30,7 +34,7 @@ class NotificationSettingDAO(BaseDAO):
             NotificationSetting.guild_id == guild_id
         ).order_by(NotificationSetting.article_type.asc()).all()
     
-    def get_active_setting(self, guild_id):
+    def get_active_setting_by_guild_id(self, guild_id):
         return self.query(NotificationSetting).filter(
             NotificationSetting.deleted == False,
             NotificationSetting.guild_id == guild_id,
