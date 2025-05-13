@@ -27,7 +27,7 @@ class RiotURL():
     TFT_NEWS = "https://teamfighttactics.leagueoflegends.com/ja-jp/news/"
 
 class Domain():
-    LOL = "leagueoflegends.com"
+    LOL = "www.leagueoflegends.com"
     TFT = "teamfighttactics.leagueoflegends.com"
     YT = "www.youtube.com"
 

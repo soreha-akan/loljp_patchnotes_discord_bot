@@ -77,7 +77,7 @@ class CheckUpdateService:
             url = news["url"]
             title = news["title"]
             normalized_url = self.normalize_url(url)
-            if not self.article_dao.exists_by_url(normalized_url):
+            if not self.article_dao.exists_by_url(normalized_url) and not self.is_patch_notes_url(normalized_url):
                 article_type = self.get_article_type_by_url(normalized_url, article_type)
                 new_article = Article(
                     title=title,
@@ -193,7 +193,7 @@ class CheckUpdateService:
         次の処理を行います：
         1. 前後の空白を削除
         2. パスの末尾のスラッシュを削除
-        3. www.leagueoflegends.com の 'www.' を除去
+        3. leagueoflegends.com に 'www.' を付与
         """
         # URLが空または None の場合はそのまま返す
         if not url:
@@ -208,10 +208,10 @@ class CheckUpdateService:
         if path and path != '/' and path.endswith('/'):
              path = path[:-1]
 
-        # netloc の www. を除去（leagueoflegends.com 限定）
+        # netloc に www. を付与（leagueoflegends.com 限定）
         netloc = parsed.netloc
-        if netloc == 'www.leagueoflegends.com':
-            netloc = 'leagueoflegends.com'
+        if netloc == 'leagueoflegends.com':
+            netloc = 'www.leagueoflegends.com'
 
         # 正規化されたコンポーネントでURLを再構築
         normalized_parts = list(parsed)
@@ -230,9 +230,15 @@ class CheckUpdateService:
             case Domain.LOL:
                 return ArticleType.LOL_NEWS
             case Domain.YT:
-                yt_channel_name = YouTube(article_url).author
-                if yt_channel_name in {YTChannelName.TFT, YTChannelName.TFT_JP}:
-                    return ArticleType.TFT_NEWS
+                try:
+                    yt_channel_name = YouTube(article_url).author
+                    if yt_channel_name in {YTChannelName.TFT, YTChannelName.TFT_JP}:
+                        return ArticleType.TFT_NEWS
+                except:
+                    return fallback_type
 
         return fallback_type
     
+    def is_patch_notes_url(self, article_url: str) -> bool:
+        return 'patch' in article_url.lower() and 'notes' in article_url.lower()
+        
