@@ -9,7 +9,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
     engine = create_engine(DATABASE_URL,
-        echo=True,
+        echo=False, # ターミナルにクエリログを出力しない
         pool_size=10,
         max_overflow=20,
         pool_timeout=30,

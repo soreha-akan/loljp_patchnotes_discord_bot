@@ -6,8 +6,9 @@ from Models.Article import Article
 from DAO.NotificationSettingDAO import NotificationSettingDAO
 from bs4 import BeautifulSoup
 from Service.SendMessageService import SendMessageService
-from config.constants import ArticleType, RiotURL
+from config.constants import ArticleType, RiotURL, Domain, YTChannelName
 from collections import defaultdict
+from pytube import YouTube
 import aiohttp
 
 class CheckUpdateService:
@@ -73,12 +74,11 @@ class CheckUpdateService:
         """ ニュース記事更新チェックの共通メソッド """
         news_list = await self.fetch_news_link_list(soup, article_type)
         for news in news_list:
-            if article_type == ArticleType.LOL_NEWS:
-                print(news)
             url = news["url"]
             title = news["title"]
             normalized_url = self.normalize_url(url)
             if not self.article_dao.exists_by_url(normalized_url):
+                article_type = self.get_article_type_by_url(normalized_url, article_type)
                 new_article = Article(
                     title=title,
                     article_type=article_type,
@@ -193,6 +193,7 @@ class CheckUpdateService:
         次の処理を行います：
         1. 前後の空白を削除
         2. パスの末尾のスラッシュを削除
+        3. www.leagueoflegends.com の 'www.' を除去
         """
         # URLが空または None の場合はそのまま返す
         if not url:
@@ -207,9 +208,31 @@ class CheckUpdateService:
         if path and path != '/' and path.endswith('/'):
              path = path[:-1]
 
+        # netloc の www. を除去（leagueoflegends.com 限定）
+        netloc = parsed.netloc
+        if netloc == 'www.leagueoflegends.com':
+            netloc = 'leagueoflegends.com'
+
         # 正規化されたコンポーネントでURLを再構築
         normalized_parts = list(parsed)
-        normalized_parts[2] = path
+        normalized_parts[1] = netloc  # netloc (ドメイン)
+        normalized_parts[2] = path    # path
 
         # URLを再構築して返す
         return urlunparse(tuple(normalized_parts))
+    
+    def get_article_type_by_url(self, article_url: str, fallback_type: ArticleType) -> ArticleType:
+        domain = urlparse(article_url).netloc
+
+        match domain:
+            case Domain.TFT:
+                return ArticleType.TFT_NEWS
+            case Domain.LOL:
+                return ArticleType.LOL_NEWS
+            case Domain.YT:
+                yt_channel_name = YouTube(article_url).author
+                if yt_channel_name in {YTChannelName.TFT, YTChannelName.TFT_JP}:
+                    return ArticleType.TFT_NEWS
+
+        return fallback_type
+    

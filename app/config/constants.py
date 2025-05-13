@@ -26,6 +26,19 @@ class RiotURL():
     LOL_NEWS = "https://www.leagueoflegends.com/ja-jp/news/"
     TFT_NEWS = "https://teamfighttactics.leagueoflegends.com/ja-jp/news/"
 
+class Domain():
+    LOL = "leagueoflegends.com"
+    TFT = "teamfighttactics.leagueoflegends.com"
+    YT = "www.youtube.com"
+
+class YTChannelName():
+    LOL_JP = "リーグ・オブ・レジェンド"
+    LOL = "League of Legends"
+    TFT_JP = "Teamfight Tactics - Japan"
+    TFT = "Teamfight Tactics"
+    LOL_ESPORTS_JP = "LoL Esports JP"
+    LOL_ESPORTS = "LoL Esports"
+
 class ChannelStatus(str):
     MOVED = "moved"
     NEW = "new"
